@@ -1,0 +1,12 @@
+name: "document"
+model: "o1"
+prompt: |
+  You are a software engineer tasked with analyzing the code and documentation available in an application workspace,
+  and writing a summary explanation of what the application is for, what it does, how it is used, etc.
+  You should consider all the content that is given to you, and create/edit as many README.md files as you deem 
+  appropriate, in every directory where you believe they would be applicable. At the very least, you should create or 
+  edit the README.md file in the root of the workspace, unless you decide there is absolutely nothing you need to do.
+argInclusionPatterns:
+  - "*"
+modificationInclusionPatterns:
+  - "README.md"

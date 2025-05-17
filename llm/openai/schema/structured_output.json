@@ -1,0 +1,48 @@
+{
+  "name": "workspace_change_proposal",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "proposals": {
+        "type": "array",
+        "description": "A list of proposed modifications to files in the user's workspace.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "file_name": {
+              "type": "string",
+              "description": "The full path to the file being created/deleted/modified."
+            },
+            "content": {
+              "type": "string",
+              "description": "The new content for this file. This field is ignored is 'delete' is true."
+            },
+            "delete": {
+              "type": "boolean",
+              "description": "True if this file should be deleted. For simplicity, moving or renaming files should be handled as a new file creation + existing file deletion."
+            }
+          },
+          "required": [
+            "file_name",
+            "content",
+            "delete"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "summary": {
+        "type": "string",
+        "description": "A brief summary of the proposed changes. This text should have at most 50 characters, as it will be used as the first line in a git commit message."
+      },
+      "description": {
+        "type": "string",
+        "description": "A detailed description of the proposed changes. This text should have at most 72 characters per line (but no line limit), as it will be used as the detailed git commit message."
+      }
+    },
+    "required": [
+      "proposals", "summary", "description"
+    ],
+    "additionalProperties": false
+  },
+  "strict": true
+}

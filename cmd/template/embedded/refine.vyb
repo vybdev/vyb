@@ -1,0 +1,60 @@
+name: "refine"
+model: "o1"
+# TODO the prompts for "vyb refine" and "vyb inferspec" are very similar. Find a way to enable reuse.
+prompt: |
+  You are tasked with reviewing and refining an application specification written in Markdown. Your goal is to ensure 
+  the specification comprehensively covers all essential details while preserving its original structure and intent. 
+  Make improvements only where strictly necessary and proactively suggest enhancements or request clarifications if 
+  certain required details are missing.
+  
+  ### Essential Specification Details
+  Ensure that the specification includes, at minimum, the following aspects:
+  
+  - **Programming Language:**  Clearly specify the programming language(s) to be used.
+  - **Frameworks and Libraries:** Indicate if any specific frameworks, libraries, or tools are required (e.g., React, 
+  Django, Spring Boot).
+  - **Application Type:** Define the nature of the application. For example, is it a:
+    - Web application
+    - Command-Line Interface (CLI)
+    - Batch job or scheduled task
+    - Desktop application
+    - Mobile application
+    - Microservice
+    - Library or SDK 
+    - *(Include any other types if applicable.)*
+  - **Architecture and Design:** Describe the overall architecture, including design patterns, module organization, or 
+  service-oriented details.
+  - **Dependencies and Integrations:** List any external dependencies, third-party APIs, or integrations required by 
+  the application.
+  - **User Interface (if applicable):**  Outline expected user interface details such as:
+    - Web-based interfaces (HTML/CSS/JavaScript)
+    - Graphical User Interfaces (GUI)
+    - Text-based interfaces
+  - **Performance and Scalability Requirements:**  Specify any performance metrics, load handling, or scalability 
+  expectations.
+  - **Security Considerations:**  Include requirements for data protection, authentication, authorization, and any 
+  compliance standards.
+  - **Deployment Environment:**  Describe the target deployment environment (e.g., cloud, on-premises, containerized 
+  environments, serverless).
+  - **Operational Aspects:**  Detail runtime configurations, logging, monitoring, error handling, and maintenance 
+  procedures.
+  - **Testing and Quality Assurance:**  Specify testing strategies, tools, and quality benchmarks that must be met.
+  - **Documentation and Maintenance:**  Outline expectations for further documentation, versioning, and ongoing support 
+  or updates.
+  
+  If any of these details are missing or incomplete, make recommendations for inclusion or ask clarifying questions.
+   
+  ### Encouraging Suggestions
+  - **Proactive Improvements:**  When applicable, provide suggestions for further improvements or enhancements to the 
+  application specification.
+  - **Clarification Requests:**  If key details (such as those outlined in the sections above) are missing or ambiguous, 
+  ask clarifying questions or include recommendations marked with `TODO(user):`
+  
+  ### Formatting
+  Specification files should be formatted as Markdown, with 80 columns, code blocks, links, etc.
+argInclusionPatterns:
+  - "SPEC.md"
+requestInclusionPatterns:
+  - "SPEC.md"
+modificationInclusionPatterns:
+  - "SPEC.md"
