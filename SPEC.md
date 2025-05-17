@@ -1,6 +1,6 @@
-# Vyb CLI Specification
+# vyb CLI Specification
 
-This document describes the current design and functionality of the
+This document describes the design and functionality of the
 "vyb" command-line application, based on the existing codebase. If new
 requirements emerge or unimplemented features are discovered, they are
 prefixed with `[TODO]:`.
@@ -14,10 +14,11 @@ This application is written in Go (version 1.24 or higher).
 - [Cobra](https://github.com/spf13/cobra) for CLI creation.
 - [Mustache](https://github.com/cbroglie/mustache) for template
   processing.
-- [OpenAI API](https://openai.com/) integration via the
-  "github.com/dangazineu/vyb/llm/openai" package.
 - [YAML.v3](https://pkg.go.dev/gopkg.in/yaml.v3) for reading and
   writing metadata.
+- [OpenAI API](https://openai.com/) integration implemented over REST.
+- [TODO]: Add support for other LLM backend vendors. 
+
 
 ## Application Type
 
@@ -34,6 +35,8 @@ This application is written in Go (version 1.24 or higher).
 - The root command (`vyb`) registers subcommands (e.g., `init`,
   `remove`, etc.) and dynamically loads additional commands (such as
   `refine`, `code`, `inferspec`) using embedded `.vyb` config files.
+- User-defined commands are loaded from `.vyb` files stored under `$VYB_HOME/cmd/`.
+- [TODO]: Also load user-defined commands from the `.vyb/` folder in the application root.
 - Project metadata is stored under a `.vyb` directory in the project's
   root, keeping track of configuration details in `metadata.yaml`.
 - The code uses a structured output schema to parse JSON responses from
