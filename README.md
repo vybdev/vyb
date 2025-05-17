@@ -1,9 +1,8 @@
 # vyb
 
-This repository contains the 'vyb' CLI, a tool that leverages the
-OpenAI API to help you iteratively develop applications. With 'vyb',
-you can refine specifications, automatically generate or update code,
-and handle tasks like initializing or removing project metadata.
+`vyb` is a CLI that helps you iteratively develop applications, faster. 
+With 'vyb', you can refine your application spec, generate or update code, or provide your own command extensions to 
+perform tasks that are relevant to your application workspace.
 
 ## Features
 
