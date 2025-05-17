@@ -67,7 +67,11 @@ func loadGlobalConfigs() []*Definition {
 	if vybHome == "" {
 		return nil
 	}
-	return loadConfigs(os.DirFS(vybHome))
+	cmdPath := filepath.Join(vybHome, "cmd")
+	if _, err := os.Stat(cmdPath); err != nil {
+		return nil
+	}
+	return loadConfigs(os.DirFS(cmdPath))
 }
 
 // toMap converts a slice of *Definition into a map where the key is the Name field
