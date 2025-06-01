@@ -53,7 +53,6 @@ func (o openaiErrorResponse) Error() string {
 
 // GetModuleContext calls the LLM and returns a parsed ModuleContext value.
 func GetModuleContext(systemMessage, userMessage string) (*payload.ModuleContextResponse, error) {
-	//"gpt-4.1-nano"
 	openaiResp, err := callOpenAI(systemMessage, userMessage, schema.GetModuleContextSchema(), "o4-mini")
 	if err != nil {
 		var openAIErrResp openaiErrorResponse
