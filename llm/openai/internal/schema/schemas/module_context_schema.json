@@ -1,0 +1,45 @@
+{
+  "name": "module_context_schema",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "modules": {
+        "type": "array",
+        "description": "A list of modules",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The name of the module"
+            },
+            "external_context": {
+              "type": "string",
+              "description": "Summary and information about parent and sibling modules that help contextualize the existence and purpose of this module. This is only present when the module has a parent. Otherwise, it's an empty string."
+            },
+            "internal_context": {
+              "type": "string",
+              "description": "Summary and information about files directly within this specific module."
+            },
+            "public_context": {
+              "type": "string",
+              "description": "Summary and information about files directly within this module, as well as any of its children. This will be used by sibling modules, and modules outside of this module's hierarchy."
+            }
+          },
+          "required": [
+            "name",
+            "external_context",
+            "internal_context",
+            "public_context"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "modules"
+    ],
+    "additionalProperties": false
+  },
+  "strict": true
+}

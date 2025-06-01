@@ -1,52 +1,70 @@
 package payload
 
 import (
-	"strings"
 	"testing"
 	"testing/fstest"
 )
 
-func TestBuildUserMessage(t *testing.T) {
-	// Create a MapFS with two files.
-	testFS := fstest.MapFS{
-		"file1.md": &fstest.MapFile{
-			Data: []byte("Hello, markdown!"),
-		},
-		"file2.go": &fstest.MapFile{
-			Data: []byte("package main\n\nfunc main() {}"),
+func context(name string) *ModuleContext {
+	return &ModuleContext{Name: name}
+}
+func pcontext(name string) *ModuleContext { return context(name) }
+
+func TestBuildModuleContextUserMessage(t *testing.T) {
+	// Files arranged in a nested module hierarchy:
+	//  - root.txt (root module / no module name)
+	//  - moduleA/a.go
+	//  - moduleA/subB/b.md
+	mfs := fstest.MapFS{
+		"root.txt":          &fstest.MapFile{Data: []byte("root")},
+		"moduleA/a.go":      &fstest.MapFile{Data: []byte("package foo\n")},
+		"moduleA/subB/b.md": &fstest.MapFile{Data: []byte("Markdown content")},
+	}
+
+	// Construct the ModuleContextRequest tree that mirrors the hierarchy.
+	req := &ModuleContextRequest{
+		FilePaths: []string{"root.txt"},
+		SubModules: []*ModuleContextRequest{
+			{
+				ModuleCtx: pcontext("moduleA"),
+				FilePaths: []string{"moduleA/a.go"},
+				SubModules: []*ModuleContextRequest{
+					{
+						ModuleCtx: pcontext("moduleA/subB"),
+						FilePaths: []string{"moduleA/subB/b.md"},
+					},
+				},
+			},
 		},
 	}
 
-	// Define the file paths in the order to be processed.
-	filePaths := []string{"file1.md", "file2.go"}
-
-	// Call BuildUserMessage.
-	result, err := BuildUserMessage(testFS, filePaths)
+	got, err := BuildModuleContextUserMessage(mfs, req)
 	if err != nil {
-		t.Fatalf("BuildUserMessage returned an error: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Manually construct the expected markdown output.
-	// For file1.md, language is "markdown" and content is appended with a trailing newline.
-	// For file2.go, language is "go" and since the content does not end with a newline, one is appended.
-	expected := strings.Join([]string{
-		"# file1.md",
-		"```markdown",
-		"Hello, markdown!",
-		"```",
-		"",
-		"# file2.go",
-		"```go",
-		"package main",
-		"",
-		"func main() {}",
-		"```",
-		"",
-		"",
-	}, "\n")
+	// Expected payload manually constructed to include module headers.
+	expected := "# root.txt\n" +
+		"```text\nroot\n```\n\n" +
+		"# moduleA\n" +
+		"# moduleA/a.go\n```go\npackage foo\n```\n\n" +
+		"# moduleA/subB\n" +
+		"# moduleA/subB/b.md\n```markdown\nMarkdown content\n```\n\n"
 
-	// Compare the generated markdown with the expected output.
-	if result != expected {
-		t.Errorf("Unexpected markdown output:\nGot:\n%s\nExpected:\n%s", result, expected)
+	if got != expected {
+		t.Errorf("payload mismatch.\nGot:\n%s\nExpected:\n%s", got, expected)
+	}
+}
+
+func TestBuildModuleContextUserMessage_FileNotFound(t *testing.T) {
+	// Empty filesystem – any file access should fail.
+	mfs := fstest.MapFS{}
+
+	req := &ModuleContextRequest{
+		FilePaths: []string{"does_not_exist.txt"},
+	}
+
+	if _, err := BuildModuleContextUserMessage(mfs, req); err == nil {
+		t.Fatalf("expected error for missing file, got nil")
 	}
 }
