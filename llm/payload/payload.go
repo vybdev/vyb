@@ -70,10 +70,6 @@ type ModuleSelfContainedContextRequest struct {
 	SubModules  []*ModuleSelfContainedContextRequest
 }
 
-//type ModuleSelfContainedContextResponse struct {
-//	Modules []ModuleSelfContainedContext `json:"modules"`
-//}
-
 // BuildModuleContextUserMessage constructs a Markdown-formatted string that
 // includes the content of all files referenced by the provided
 // ModuleSelfContainedContextRequest *root* and the public context of its immediate
