@@ -175,7 +175,7 @@ func writeModule(sb *strings.Builder, path string, context *ModuleSelfContainedC
 	if path == "" && (context == nil || (context.ExternalContext == "" && context.InternalContext == "" && context.PublicContext == "")) {
 		return
 	}
-	sb.WriteString(fmt.Sprintf("# Module: `%s\n`", path))
+	sb.WriteString(fmt.Sprintf("# Module: `%s`\n", path))
 	if context != nil {
 		if context.ExternalContext != "" {
 			sb.WriteString("## External Context\n")
