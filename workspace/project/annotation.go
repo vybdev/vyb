@@ -49,6 +49,7 @@ func annotate(metadata *Metadata, sysfs fs.FS) error {
 			fmt.Printf("module %q already has an annotation, skipping...\n", m.Name)
 			continue
 		}
+		fmt.Printf("module %q doesn't have annotation\n", m.Name)
 		// Capture m for the goroutine.
 		go func(mod *Module) {
 			// Wait for all submodules to complete.

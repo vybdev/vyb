@@ -31,8 +31,7 @@ func newModule(name string, parent *Module, modules []*Module, files []*FileRef,
 		Files:           files,
 		Directories:     deriveDirectoriesFromFiles(files),
 		Annotation:      annotation,
-		MD5:             computeHashFromAnnotation(annotation), // Annotation MD5 filled later when annotation exists.
-		childrenMD5:     computeHashFromChildren(modules, files),
+		MD5:             computeHashFromChildren(modules, files),
 		localTokenCount: computeTokenCountFromChildren(nil, files),
 		TokenCount:      computeTokenCountFromChildren(modules, files),
 	}
@@ -67,26 +66,7 @@ type Module struct {
 	Annotation      *Annotation `yaml:"annotation,omitempty"`
 	TokenCount      int64       `yaml:"token_count"`
 	MD5             string      `yaml:"md5"`
-	childrenMD5     string      `yaml:"-"`
 	localTokenCount int64       `yaml:"-"`
-}
-
-func (m *Module) NeedsAnnotationUpdate() bool {
-	for _, mod := range m.Modules {
-		if mod.NeedsAnnotationUpdate() {
-			return true
-		}
-	}
-	if m.childrenMD5 != computeHashFromChildren(m.Modules, m.Files) {
-		return true
-	}
-	if m.Annotation == nil {
-		return true
-	}
-	if m.MD5 != computeHashFromBytes([]byte(m.Annotation.PublicContext)) {
-		return true
-	}
-	return false
 }
 
 func computeTokenCountFromChildren(modules []*Module, files []*FileRef) int64 {
@@ -110,15 +90,6 @@ func computeHashFromChildren(modules []*Module, files []*FileRef) string {
 	}
 	sort.Strings(hashes)
 	return computeHashFromBytes([]byte(strings.Join(hashes, "")))
-}
-
-var emptyHash = computeHashFromBytes([]byte(""))
-
-func computeHashFromAnnotation(annotation *Annotation) string {
-	if annotation == nil {
-		return emptyHash
-	}
-	return computeHashFromBytes([]byte(annotation.PublicContext))
 }
 
 func computeHashFromBytes(bytes []byte) string {
