@@ -15,7 +15,7 @@ func GetWorkspaceChangeProposalSchema() StructuredOutputSchema {
 
 // GetModuleContextSchema retrieves the structured output schema for the module context from an embedded JSON file.
 func GetModuleContextSchema() StructuredOutputSchema {
-	return getSchema("schemas/module_context_schema.json")
+	return getSchema("schemas/module_selfcontained_context_schema.json")
 }
 
 func getSchema(schemaName string) StructuredOutputSchema {

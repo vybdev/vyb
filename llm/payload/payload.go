@@ -50,85 +50,113 @@ type FileChangeProposal struct {
 	Delete   bool   `json:"delete"`
 }
 
-// ModuleContext captures contextual information for a module.
-type ModuleContext struct {
+// ModuleSelfContainedContext captures the context of a module and its sub-modules.
+type ModuleSelfContainedContext struct {
 	Name            string `json:"name,omitempty"`
 	ExternalContext string `json:"external_context,omitempty"`
 	InternalContext string `json:"internal_context,omitempty"`
 	PublicContext   string `json:"public_context,omitempty"`
 }
 
-type ModuleContextRequest struct {
-	FilePaths  []string
-	ModuleCtx  *ModuleContext
-	SubModules []*ModuleContextRequest
+// ModuleExternalContext captures the context of a module and its sub-modules.
+type ModuleExternalContext struct {
+	Name            string `json:"name,omitempty"`
+	ExternalContext string `json:"external_context,omitempty"`
+}
+type ModuleSelfContainedContextRequest struct {
+	FilePaths   []string
+	Directories []string
+	ModuleCtx   *ModuleSelfContainedContext
+	SubModules  []*ModuleSelfContainedContextRequest
 }
 
-type ModuleContextResponse struct {
-	Modules []ModuleContext `json:"modules"`
-}
+//type ModuleSelfContainedContextResponse struct {
+//	Modules []ModuleSelfContainedContext `json:"modules"`
+//}
 
 // BuildModuleContextUserMessage constructs a Markdown-formatted string that
 // includes the content of all files referenced by the provided
-// ModuleContextRequest tree.  `projectRoot` is expected to be an fs.FS rooted
-// at the workspace root, and every file path contained in the request is
-// interpreted as relative to the module to which it belongs.
+// ModuleSelfContainedContextRequest *root* and the public context of its immediate
+// sub-modules.
+//
+// Behaviour rules:
+//  1. The files listed in the root request are included verbatim.
+//  2. For each *immediate* sub-module of the root request, only its
+//     PublicContext (if any) is emitted – no files are rendered for those
+//     sub-modules and no information is emitted for modules that are
+//     grandchildren or deeper.
 //
 // If any referenced file cannot be read this function returns an error.
-func BuildModuleContextUserMessage(projectRoot fs.FS, request *ModuleContextRequest) (string, error) {
+func BuildModuleContextUserMessage(projectRoot fs.FS, request *ModuleSelfContainedContextRequest) (string, error) {
 	if projectRoot == nil {
 		return "", fmt.Errorf("projectRoot fs.FS must not be nil")
 	}
 	if request == nil {
-		return "", fmt.Errorf("ModuleContextRequest must not be nil")
+		return "", fmt.Errorf("ModuleSelfContainedContextRequest must not be nil")
 	}
 
 	var sb strings.Builder
 
-	// Recursively walk the ModuleContextRequest tree collecting file entries.
-	var walk func(req *ModuleContextRequest, modulePrefix string) error
-	walk = func(req *ModuleContextRequest, modulePrefix string) error {
-		if req == nil {
-			return nil
+	// Helper that resolves the absolute workspace path for a file declared in
+	// the *root* module.
+	resolvePath := func(rootPrefix, rel string) string {
+		if rootPrefix == "" || rootPrefix == "." || strings.HasPrefix(rel, rootPrefix+string(filepath.Separator)) {
+			return rel
 		}
-
-		// Compute this module's absolute (from project root) path.
-		currentPrefix := modulePrefix
-		if req.ModuleCtx != nil && req.ModuleCtx.Name != "" {
-			// When module names already hold the full path we simply adopt it.
-			currentPrefix = req.ModuleCtx.Name
-		}
-
-		// Only emit a module header if we have a path or some context text.
-		if currentPrefix != "" && currentPrefix != "." || (req.ModuleCtx != nil && (req.ModuleCtx.ExternalContext != "" || req.ModuleCtx.InternalContext != "" || req.ModuleCtx.PublicContext != "")) {
-			writeModule(&sb, currentPrefix, req.ModuleCtx)
-		}
-
-		// Process files declared in this module.
-		for _, relFile := range req.FilePaths {
-			fullPath := relFile
-			if currentPrefix != "" && currentPrefix != "." && !strings.HasPrefix(relFile, currentPrefix+string(filepath.Separator)) {
-				fullPath = filepath.Join(currentPrefix, relFile)
-			}
-
-			data, err := fs.ReadFile(projectRoot, fullPath)
-			if err != nil {
-				return fmt.Errorf("failed to read file %s: %w", fullPath, err)
-			}
-			writeFile(&sb, fullPath, string(data))
-		}
-
-		// Recurse into sub-modules.
-		for _, sub := range req.SubModules {
-			if err := walk(sub, currentPrefix); err != nil {
-				return err
-			}
-		}
-		return nil
+		return filepath.Join(rootPrefix, rel)
 	}
 
-	if err := walk(request, ""); err != nil {
-		return "", err
+	// -----------------------------
+	// 1.  Emit root-module information.
+	// -----------------------------
+	rootPrefix := ""
+	if request.ModuleCtx != nil && request.ModuleCtx.Name != "" {
+		rootPrefix = request.ModuleCtx.Name
+	}
+
+	// Header for the root module if we have a name or any context data.
+	if rootPrefix != "" || (request.ModuleCtx != nil && (request.ModuleCtx.ExternalContext != "" || request.ModuleCtx.InternalContext != "" || request.ModuleCtx.PublicContext != "")) {
+		writeModule(&sb, rootPrefix, request.ModuleCtx)
+	}
+	// Only spend these tokens if we need to teach the LLM that a directory != module.
+	if len(request.Directories) > 1 {
+		sb.WriteString(fmt.Sprintf("## Directories in module `%s`\n", rootPrefix))
+		sb.WriteString(fmt.Sprintf("The following is a list of directories that are part of the module `%s`\n.", rootPrefix))
+		sb.WriteString(fmt.Sprintf("These ARE NOT MODULES, they are directories within the module. When summarizing their file contents, include them in the summary of `%s`, do not make up modules for them.\n", rootPrefix))
+		for _, dir := range request.Directories {
+			sb.WriteString(fmt.Sprintf("- %s\n", dir))
+		}
+	}
+
+	sb.WriteString("## Files in module `%s`\n")
+	// Emit root-module files.
+	for _, relFile := range request.FilePaths {
+		fullPath := resolvePath(rootPrefix, relFile)
+		data, err := fs.ReadFile(projectRoot, fullPath)
+		if err != nil {
+			return "", fmt.Errorf("failed to read file %s: %w", fullPath, err)
+		}
+		writeFile(&sb, fullPath, string(data))
+	}
+
+	// -----------------------------
+	// 2. Emit public context of immediate sub-modules.
+	// -----------------------------
+	for _, sub := range request.SubModules {
+		if sub == nil || sub.ModuleCtx == nil {
+			continue // nothing useful to emit
+		}
+
+		// We only expose the public context of immediate sub-modules.
+		if sub.ModuleCtx.PublicContext == "" && sub.ModuleCtx.Name == "" {
+			continue
+		}
+
+		trimmedCtx := &ModuleSelfContainedContext{
+			Name:          sub.ModuleCtx.Name,
+			PublicContext: sub.ModuleCtx.PublicContext,
+		}
+		writeModule(&sb, trimmedCtx.Name, trimmedCtx)
 	}
 
 	return sb.String(), nil
@@ -144,25 +172,25 @@ func buildPayload(files []fileEntry) string {
 	return sb.String()
 }
 
-func writeModule(sb *strings.Builder, path string, context *ModuleContext) {
+func writeModule(sb *strings.Builder, path string, context *ModuleSelfContainedContext) {
 	if sb == nil {
 		return
 	}
 	if path == "" && (context == nil || (context.ExternalContext == "" && context.InternalContext == "" && context.PublicContext == "")) {
 		return
 	}
-	sb.WriteString(fmt.Sprintf("# %s\n", path))
+	sb.WriteString(fmt.Sprintf("# Module: `%s\n`", path))
 	if context != nil {
 		if context.ExternalContext != "" {
-			sb.WriteString("# External Context\n")
+			sb.WriteString("## External Context\n")
 			sb.WriteString(fmt.Sprintf("%s\n", context.ExternalContext))
 		}
 		if context.InternalContext != "" {
-			sb.WriteString("# Internal Context\n")
+			sb.WriteString("## Internal Context\n")
 			sb.WriteString(fmt.Sprintf("%s\n", context.InternalContext))
 		}
 		if context.PublicContext != "" {
-			sb.WriteString("# Public Context\n")
+			sb.WriteString("## Public Context\n")
 			sb.WriteString(fmt.Sprintf("%s\n", context.PublicContext))
 		}
 	}
@@ -173,7 +201,7 @@ func writeFile(sb *strings.Builder, filepath, content string) {
 		return
 	}
 	lang := getLanguageFromFilename(filepath)
-	sb.WriteString(fmt.Sprintf("# %s\n", filepath))
+	sb.WriteString(fmt.Sprintf("### %s\n", filepath))
 	sb.WriteString(fmt.Sprintf("```%s\n", lang))
 	sb.WriteString(content)
 	// Ensure a trailing newline before closing the code block.

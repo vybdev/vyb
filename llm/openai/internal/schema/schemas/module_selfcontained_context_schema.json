@@ -1,0 +1,23 @@
+{
+  "name": "module_context_schema",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "internal_context": {
+        "type": "string",
+        "description": "Summary and information about files directly within this specific module. This includes files that are directly under the root directory of the module, as well as files within any other directory in the module."
+      },
+      "public_context": {
+        "type": "string",
+        "description": "Summary and information about files directly within this module, as well as any of its children modules. This will be used by sibling modules, and modules outside of this module's hierarchy."
+      }
+    },
+    "required": [
+      "internal_context",
+      "public_context"
+    ],
+    "additionalProperties": false
+  },
+  "strict": true
+}
+  

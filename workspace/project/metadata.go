@@ -28,12 +28,29 @@ func newModule(name string, modules []*Module, files []*FileRef, annotation *Ann
 		Name:            name,
 		Modules:         modules,
 		Files:           files,
+		Directories:     deriveDirectoriesFromFiles(files),
 		Annotation:      annotation,
 		MD5:             computeHashFromAnnotation(annotation), // Annotation MD5 filled later when annotation exists.
 		childrenMD5:     computeHashFromChildren(modules, files),
 		localTokenCount: computeTokenCountFromChildren(nil, files),
 		TokenCount:      computeTokenCountFromChildren(modules, files),
 	}
+}
+
+// deriveDirectoriesFromFiles gets a list of files and returns a list of unique directories holding those files
+func deriveDirectoriesFromFiles(files []*FileRef) []string {
+	dirs := make(map[string]struct{})
+	for _, f := range files {
+		dir := filepath.Dir(f.Name)
+		dirs[dir] = struct{}{}
+	}
+
+	var result []string
+	for dir := range dirs {
+		result = append(result, dir)
+	}
+	sort.Strings(result)
+	return result
 }
 
 // Module represents a hierarchical grouping of information within a vyb
@@ -44,21 +61,13 @@ type Module struct {
 	Name            string      `yaml:"name"`
 	Modules         []*Module   `yaml:"modules"`
 	Files           []*FileRef  `yaml:"files"`
+	Directories     []string    `yaml:"-"`
 	Annotation      *Annotation `yaml:"annotation,omitempty"`
 	TokenCount      int64       `yaml:"token_count"`
 	MD5             string      `yaml:"md5"`
 	childrenMD5     string      `yaml:"-"`
 	localTokenCount int64       `yaml:"-"`
 }
-
-//func (m *Module) update() {
-//	for _, mod := range m.Modules {
-//		mod.update()
-//	}
-//	m.childrenMD5 = computeHashFromChildren(m.Modules, m.Files)
-//
-//
-//}
 
 func (m *Module) NeedsAnnotationUpdate() bool {
 	for _, mod := range m.Modules {
@@ -77,17 +86,6 @@ func (m *Module) NeedsAnnotationUpdate() bool {
 	}
 	return false
 }
-
-//func (m *Module) TokenCount() int64 {
-//	if m.localTokenCount == nil {
-//		var cnt int64
-//		for _, file := range m.Files {
-//			cnt += file.TokenCount
-//		}
-//		m.localTokenCount = &cnt
-//	}
-//	return *m.localTokenCount
-//}
 
 func computeTokenCountFromChildren(modules []*Module, files []*FileRef) int64 {
 	var count int64

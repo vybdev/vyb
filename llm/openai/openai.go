@@ -51,8 +51,8 @@ func (o openaiErrorResponse) Error() string {
 	return fmt.Sprintf("OpenAI API error: %s", o.OpenAIError.Message)
 }
 
-// GetModuleContext calls the LLM and returns a parsed ModuleContext value.
-func GetModuleContext(systemMessage, userMessage string) (*payload.ModuleContextResponse, error) {
+// GetModuleContext calls the LLM and returns a parsed ModuleSelfContainedContext value.
+func GetModuleContext(systemMessage, userMessage string) (*payload.ModuleSelfContainedContext, error) {
 	openaiResp, err := callOpenAI(systemMessage, userMessage, schema.GetModuleContextSchema(), "o4-mini")
 	if err != nil {
 		var openAIErrResp openaiErrorResponse
@@ -65,7 +65,7 @@ func GetModuleContext(systemMessage, userMessage string) (*payload.ModuleContext
 		}
 		return nil, err
 	}
-	var ctx payload.ModuleContextResponse
+	var ctx payload.ModuleSelfContainedContext
 	if err := json.Unmarshal([]byte(openaiResp.Choices[0].Message.Content), &ctx); err != nil {
 		return nil, err
 	}
@@ -89,6 +89,8 @@ func GetWorkspaceChangeProposals(systemMessage, userMessage string) (*payload.Wo
 	return &proposal, nil
 }
 
+// callOpenAI sends a request to OpenAI, returns the parsed response, and logs
+// the request/response pair to a uniquely-named JSON file in the OS temp dir.
 func callOpenAI(systemMessage, userMessage string, structuredOutput schema.StructuredOutputSchema, model string) (*openaiResponse, error) {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
@@ -162,6 +164,32 @@ func callOpenAI(systemMessage, userMessage string, structuredOutput schema.Struc
 
 	if len(openaiResp.Choices) == 0 {
 		return nil, errors.New("no choices returned from OpenAI")
+	}
+
+	// ------------------------------------------------------------
+	// Persist request and response to a unique temp-file for debug.
+	// ------------------------------------------------------------
+	logEntry := struct {
+		Request  json.RawMessage `json:"request"`
+		Response json.RawMessage `json:"response"`
+	}{
+		Request:  reqBytes,
+		Response: respBytes,
+	}
+
+	if logBytes, err := json.MarshalIndent(logEntry, "", "  "); err == nil {
+		if f, err := os.CreateTemp("", "vyb-openai-*.json"); err == nil {
+			if _, wErr := f.Write(logBytes); wErr == nil {
+				_ = f.Close()
+			} else {
+				fmt.Printf("error writing OpenAI log file: %v\n", wErr)
+			}
+			fmt.Printf("Wrote OpenAI log file to %s\n", f.Name())
+		} else {
+			fmt.Printf("error creating OpenAI log file: %v\n", err)
+		}
+	} else {
+		fmt.Printf("error marshalling OpenAI log entry: %v\n", err)
 	}
 
 	return &openaiResp, nil
