@@ -54,6 +54,28 @@ type Definition struct {
 	LongDescription string `yaml:"longDescription"`
 }
 
+// isPathUnderDir returns true when relPath is the same as workDir or resides
+// inside it (workDir is treated as a directory prefix). Both parameters MUST
+// be relative paths using the OS path separator. If workDir equals "." it is
+// considered the workspace root and every path is allowed.
+func isPathUnderDir(workDir, relPath string) bool {
+	if workDir == "" || workDir == "." {
+		return true // root working directory – everything is allowed
+	}
+
+	cleanWD := filepath.Clean(workDir)
+	cleanPath := filepath.Clean(relPath)
+
+	if cleanWD == cleanPath {
+		return true
+	}
+
+	// Ensure the prefix ends with the OS separator so that sibling folders are
+	// not incorrectly matched (e.g. "foo" should not match "foobar").
+	prefix := cleanWD + string(os.PathSeparator)
+	return strings.HasPrefix(cleanPath, prefix)
+}
+
 // prepareExecutionContext extracts all the logic needed to prepare the file selection context.
 func prepareExecutionContext(target *string) (absRoot string, relWorkDir string, relTarget *string, err error) {
 	absWorkingDir, err := filepath.Abs(".")
@@ -162,8 +184,14 @@ func execute(cmd *cobra.Command, args []string, def *Definition) error {
 	// Validate that every file in the proposal is allowed to be modified.
 	invalidFiles := []string{}
 	for _, prop := range proposal.Proposals {
+		// 1. Pattern based validation (existing behaviour).
 		if !matcher.IsIncluded(rootFS, prop.FileName, append(systemExclusionPatterns, def.ModificationExclusionPatterns...), def.ModificationInclusionPatterns) {
 			invalidFiles = append(invalidFiles, prop.FileName)
+			continue
+		}
+		// 2. Must reside within the working_dir.
+		if !isPathUnderDir(relWorkDir, prop.FileName) {
+			invalidFiles = append(invalidFiles, prop.FileName+" (outside working_dir)")
 		}
 	}
 	if len(invalidFiles) > 0 {
