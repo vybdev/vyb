@@ -194,3 +194,19 @@ Each type of context should be as descriptive as possible, using around one thou
 	}
 	return nil
 }
+
+// TODO(vyb): implement this function, along with all the other changes needed for it to work. This function is
+// similar to addOrUpdateSelfContainedContext, but while that function changes the InternalContext and the PublicContext
+// of a single module at a time, addOrUpdateExternalContext should add or update the ExternalContext of all modules
+// within the given module (including all their child modules as well). To achieve that, this function should send the
+// PublicContext and Private context of every module it finds. It should also include the name of the parent module for
+// each module in the payload, so it is easier for the LLM to infer the hierarchy. The prompt should explain to the LLM
+// that the ExternalContext is about where in the hierarchy a given module is located, and what is outside of it.
+// The response should then be mapped back to the original modules.
+// In addition to the code in this function, you will need new data structures to represent the request that is sent to
+// the LLM, you may need new a data structure to represent the response (alongside a json schema file). You will also
+// need a new function in the openai module to actually interact with the LLM. Please refer to the code in
+// addOrUpdateSelfContainedContext, as well as all the functions it calls in order to implement the functionality.
+func addOrUpdateExternalContext(m *Module, sysfs fs.FS) error {
+	return nil
+}
