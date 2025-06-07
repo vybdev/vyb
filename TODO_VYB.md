@@ -22,6 +22,56 @@ Module summaries should leverage these concepts as well:
 
 ## TODO List
 
+Below is a sequenced backlog of **atomic** changes required to reach the
+behaviour specified above.  Each bullet should result in a single,
+self-contained commit.
+
+1. [ ] 🔧 **Introduce `ExecutionContext` struct**
+    - Fields: `ProjectRoot`, `WorkingDir`, `TargetDir` (all *relative*
+      paths).
+    - Add helper constructor that validates the invariants described in
+      *What You Should Do*.
+    - Place the new type in `workspace/context` (new package) so it can
+      be reused by selector, template and tests.
+
+2. [ ] 🧹 **Refactor `cmd/template.prepareExecutionContext`**
+    - Replace current tuple return with the new `ExecutionContext`.
+    - Ensure CLI commands fail fast when `target_file` is outside
+      `working_dir`.
+
+3. [ ] 📁 **Update `selector.Select` signature**
+    - Accept `ExecutionContext` instead of loose params.
+    - Implement inclusion logic: *all files under `target_dir`*.
+    - Keep exclusion / inclusion pattern processing unchanged.
+    - Add unit tests covering edge-cases (same dir, sibling, parent).
+
+4. [ ] 🚦 **Enforce write-scope restrictions**
+    - In `cmd/template.execute` replace `isPathUnderDir` logic with a
+      check against `ExecutionContext.WorkingDir`.
+    - Remove the standalone `isPathUnderDir` helper once migrated.
+
+5. [ ] 🧩 **Module context wiring**
+    - Enhance `payload.BuildModuleContextUserMessage` (or a new helper)
+      to compose module contexts according to the bullets under
+      *Module summaries should leverage*.
+    - Add exhaustive unit tests using in-memory module trees.
+
+6. [ ] 🛡️ **Strengthen matcher & selector tests**
+    - Add cases ensuring that files outside `target_dir` are never
+      included.
+    - Add cases verifying that proposed modifications outside
+      `working_dir` are rejected.
+
+7. [ ] 📚 **Update documentation**
+    - Amend `README.md` and command help to explain the three path
+      concepts and new safety guarantees.
+
+8. [ ] ✅ **Cleanup**
+    - Remove obsolete helpers and dead code (e.g. the old
+      `isPathUnderDir`).
+    - Run `go test ./...` and ensure full pass.
+
 ## How You Should Do it
-- Start by making a plan of self-contained atomic changes to the codebase that will take you to the final result described above. Store that change in the TODO List section of this document.
+- One by one, implement each of the tasks listed in the "TODO List of this file";
+- For every change you make, include updated tests and documentation. If you decide not to change tests or documentation as part of a given TODO, include a justification in the `description` of the `workspace_change_proposal`;
 - ALWAYS return the full content of any file you change. The content you return will be used to *replace* the content of the file. If you send back just a partial delta, the file will be broken.
