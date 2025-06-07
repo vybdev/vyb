@@ -99,10 +99,6 @@ func prepareExecutionContext(target *string) (absRoot string, relWorkDir string,
 	return absRoot, relWorkDir, target, nil
 }
 
-// TODO(vyb): update the execute function to load the metadata from the project root and include module annotation as follows:
-// - if the working directory is not the project root, include the External Context of the working directory
-// -
-
 func execute(cmd *cobra.Command, args []string, def *Definition) error {
 	if len(def.ArgInclusionPatterns) == 0 && len(args) > 0 {
 		return fmt.Errorf("command \"%s\" expects no arguments, but got %v", cmd.Use, args)
