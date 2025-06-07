@@ -114,6 +114,11 @@ func execute(cmd *cobra.Command, args []string, def *Definition) error {
 		return err
 	}
 
+	err = project.Update(absRoot)
+	if err != nil {
+		return err
+	}
+
 	rootFS := os.DirFS(absRoot)
 
 	if relTarget != nil {

@@ -46,6 +46,7 @@ func annotate(metadata *Metadata, sysfs fs.FS) error {
 	// Launch annotation tasks.
 	for _, m := range modules {
 		if m.Annotation != nil {
+			fmt.Printf("module %q already has an annotation, skipping...\n", m.Name)
 			continue
 		}
 		// Capture m for the goroutine.
