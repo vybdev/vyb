@@ -21,5 +21,5 @@ func Update(_ *cobra.Command, _ []string) {
 		fmt.Printf("Error creating metadata: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Println("Project metadata created successfully.")
+	fmt.Println("Project metadata updated successfully.")
 }
