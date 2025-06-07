@@ -122,7 +122,7 @@ func buildModuleContextRequest(m *Module) *payload.ModuleSelfContainedContextReq
 	// For the root module (name == ".") we omit the ModuleSelfContainedContext so we don’t get a "# ." header.
 	var ctxPtr *payload.ModuleSelfContainedContext
 	//if m.Name != "." {
-	//	ctxPtr = &payload.ModuleSelfContainedContext{Name: m.Name}
+	//  ctxPtr = &payload.ModuleSelfContainedContext{Name: m.Name}
 	//}
 
 	return &payload.ModuleSelfContainedContextRequest{
@@ -222,12 +222,27 @@ func addOrUpdateExternalContext(m *Module) error {
 	}
 
 	// ------------------------------------------------------------
+	// 0. Early-exit optimisation – if EVERY module already has an
+	//    ExternalContext annotation we can skip the expensive LLM call.
+	// ------------------------------------------------------------
+	allHaveExternal := true
+
+	modules := collectAllModules(m)
+
+	// ------------------------------------------------------------
 	// 1. Collect modules (m + all descendants) & prepare name->ptr map.
 	// ------------------------------------------------------------
-	modules := collectAllModules(m)
 	moduleMap := make(map[string]*Module, len(modules))
 	for _, mod := range modules {
+		if mod.Name != "." && (mod.Annotation == nil || strings.TrimSpace(mod.Annotation.ExternalContext) == "") {
+			allHaveExternal = false
+
+		}
 		moduleMap[mod.Name] = mod
+	}
+
+	if allHaveExternal {
+		return nil // Nothing to do – everything is already annotated.
 	}
 
 	// ------------------------------------------------------------
