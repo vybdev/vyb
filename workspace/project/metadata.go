@@ -23,9 +23,10 @@ type Metadata struct {
 	Modules *Module `yaml:"modules"`
 }
 
-func newModule(name string, modules []*Module, files []*FileRef, annotation *Annotation) *Module {
+func newModule(name string, parent *Module, modules []*Module, files []*FileRef, annotation *Annotation) *Module {
 	return &Module{
 		Name:            name,
+		Parent:          parent,
 		Modules:         modules,
 		Files:           files,
 		Directories:     deriveDirectoriesFromFiles(files),
@@ -59,6 +60,7 @@ type Module struct {
 	// Name stores the *full* relative path of the module from the workspace
 	// root – e.g. "dirA/dirB".  The root module has Name equal to ".".
 	Name            string      `yaml:"name"`
+	Parent          *Module     `yaml:"-"`
 	Modules         []*Module   `yaml:"modules"`
 	Files           []*FileRef  `yaml:"files"`
 	Directories     []string    `yaml:"-"`
@@ -343,14 +345,14 @@ func collapseByTokens(m *Module) {
 // rebuildModule converts a pre-existing *Module hierarchy into a new
 // tree where each node is produced via newModule so token counts and hashes
 // are accurate.
-func rebuildModule(old *Module) *Module {
+func rebuildModule(old *Module, parent *Module) *Module {
 	if old == nil {
 		return nil
 	}
 	// Convert children first.
 	var children []*Module
 	for _, c := range old.Modules {
-		children = append(children, rebuildModule(c))
+		children = append(children, rebuildModule(c, old))
 	}
-	return newModule(old.Name, children, old.Files, old.Annotation)
+	return newModule(old.Name, parent, children, old.Files, old.Annotation)
 }

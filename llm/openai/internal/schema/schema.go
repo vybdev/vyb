@@ -18,6 +18,12 @@ func GetModuleContextSchema() StructuredOutputSchema {
 	return getSchema("schemas/module_selfcontained_context_schema.json")
 }
 
+// GetModuleExternalContextSchema retrieves the structured output schema for
+// module external context generation from an embedded JSON file.
+func GetModuleExternalContextSchema() StructuredOutputSchema {
+	return getSchema("schemas/module_external_context_schema.json")
+}
+
 func getSchema(schemaName string) StructuredOutputSchema {
 	data, _ := embedded.ReadFile(schemaName)
 	var resp StructuredOutputSchema

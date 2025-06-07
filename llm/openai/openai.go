@@ -194,3 +194,19 @@ func callOpenAI(systemMessage, userMessage string, structuredOutput schema.Struc
 
 	return &openaiResp, nil
 }
+
+// GetModuleExternalContexts calls the LLM and returns a list of external
+// context strings – one per module.
+func GetModuleExternalContexts(systemMessage, userMessage string) (*payload.ModuleExternalContextResponse, error) {
+	model := "o4-mini"
+	openaiResp, err := callOpenAI(systemMessage, userMessage, schema.GetModuleExternalContextSchema(), model)
+	if err != nil {
+		return nil, err
+	}
+
+	var resp payload.ModuleExternalContextResponse
+	if err := json.Unmarshal([]byte(openaiResp.Choices[0].Message.Content), &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}

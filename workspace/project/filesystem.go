@@ -36,7 +36,7 @@ func buildModuleFromFS(fsys fs.FS, pathEntries []string) (*Module, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to build file object for %s: %w", entry, err)
 		}
-		
+
 		parent := findOrCreateParentModule(root, entry)
 		parent.Files = append(parent.Files, fileRef)
 	}
@@ -47,13 +47,13 @@ func buildModuleFromFS(fsys fs.FS, pathEntries []string) (*Module, error) {
 	// At this point, we already have all the FileRefs and their token counts.
 	// Rebuild the tree using the newModule constructor, so module TokenCounts are computed.
 
-	rebuilt := rebuildModule(root)
+	rebuilt := rebuildModule(root, nil)
 
 	// Now using the tree with token counts, collapse any modules that have fewer tokens than minTokenCountPerModule.
 	collapseByTokens(rebuilt)
 
 	// Return a fresh copy of the tree with updated per-module token counts.
-	return rebuildModule(rebuilt), nil
+	return rebuildModule(rebuilt, nil), nil
 }
 
 // newFileRefFromFS creates a *project.FileRef with computed last-modified time, token count, and MD5.

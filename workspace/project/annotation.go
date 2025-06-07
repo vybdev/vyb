@@ -5,6 +5,7 @@ import (
 	"github.com/dangazineu/vyb/llm/openai"
 	"github.com/dangazineu/vyb/llm/payload"
 	"io/fs"
+	"strings"
 )
 
 // Annotation holds context and summary for a Module.
@@ -75,7 +76,11 @@ func annotate(metadata *Metadata, sysfs fs.FS) error {
 			return err
 		}
 	}
-	return nil
+
+	// Add all external context annotations in a single shot
+	// In the future, we should make this take into consideration
+	// the token count of the annotations and possibly split the calls.
+	return addOrUpdateExternalContext(root)
 }
 
 // collectModulesInPostOrder gathers modules in a post-order traversal (children first).
@@ -195,18 +200,110 @@ Each type of context should be as descriptive as possible, using around one thou
 	return nil
 }
 
-// TODO(vyb): implement this function, along with all the other changes needed for it to work. This function is
-// similar to addOrUpdateSelfContainedContext, but while that function changes the InternalContext and the PublicContext
-// of a single module at a time, addOrUpdateExternalContext should add or update the ExternalContext of all modules
-// within the given module (including all their child modules as well). To achieve that, this function should send the
-// PublicContext and Private context of every module it finds. It should also include the name of the parent module for
-// each module in the payload, so it is easier for the LLM to infer the hierarchy. The prompt should explain to the LLM
-// that the ExternalContext is about where in the hierarchy a given module is located, and what is outside of it.
-// The response should then be mapped back to the original modules.
-// In addition to the code in this function, you will need new data structures to represent the request that is sent to
-// the LLM, you may need new a data structure to represent the response (alongside a json schema file). You will also
-// need a new function in the openai module to actually interact with the LLM. Please refer to the code in
-// addOrUpdateSelfContainedContext, as well as all the functions it calls in order to implement the functionality.
-func addOrUpdateExternalContext(m *Module, sysfs fs.FS) error {
+// addOrUpdateExternalContext generates or updates the ExternalContext for the
+// provided module *and all of its children*.
+//
+// Behaviour:
+//  1. Build a flattened list with the module itself plus every descendant
+//     module.
+//  2. For every module gather its current InternalContext and PublicContext
+//     (if available) – this information is provided to the LLM so it can
+//     reason about how the module fits the overall hierarchy.
+//  3. Call the LLM to obtain an ExternalContext string for each module.
+//  4. Persist the returned ExternalContext into the Annotation of the
+//     corresponding module, creating annotation objects when necessary.
+//
+// If the LLM call fails the error is propagated to the caller.
+func addOrUpdateExternalContext(m *Module) error {
+	if m == nil {
+		return nil
+	}
+
+	// ------------------------------------------------------------
+	// 1. Collect modules (m + all descendants) & prepare name->ptr map.
+	// ------------------------------------------------------------
+	modules := collectAllModules(m)
+	moduleMap := make(map[string]*Module, len(modules))
+	for _, mod := range modules {
+		moduleMap[mod.Name] = mod
+	}
+
+	// ------------------------------------------------------------
+	// 2. Build user-message containing internal & public context that the
+	//    LLM will use to infer external context.
+	// ------------------------------------------------------------
+	var sb strings.Builder
+	for _, mod := range modules {
+		sb.WriteString(fmt.Sprintf("## Module: %s\n", mod.Name))
+		if mod.Parent != nil {
+			sb.WriteString(fmt.Sprintf("### Parent: %s\n", mod.Parent.Name))
+		}
+		if mod.Annotation != nil {
+			if mod.Annotation.InternalContext != "" {
+				sb.WriteString("### Internal Context\n")
+				sb.WriteString(mod.Annotation.InternalContext + "\n")
+			}
+			if mod.Annotation.PublicContext != "" {
+				sb.WriteString("### Public Context\n")
+				sb.WriteString(mod.Annotation.PublicContext + "\n")
+			}
+		}
+	}
+	userMsg := sb.String()
+
+	// ------------------------------------------------------------
+	// 3. Call LLM.
+	// ------------------------------------------------------------
+	sysPrompt := `You are a prompt engineer, structuring information about an application's code base 
+so context can be provided to an LLM in the most efficient way. 
+You are tasked with determining the *external context* of a module hierarchy.
+For every module you receive:
+  • Internal Context – a description of the files inside the module.
+  • Public  Context – a description visible to other modules.
+  • Parent – the name of the module's parent. If the module has no parent, it is the root module of the application.
+
+Your job is to produce, **for each module**, an "external context" string – a
+concise explanation of where the module lives in the hierarchy and what lives
+*outside* of it that might be relevant to understand its role.
+
+Return your answer as JSON following the schema you have been provided.`
+
+	resp, err := openai.GetModuleExternalContexts(sysPrompt, userMsg)
+	if err != nil {
+		return err
+	}
+
+	// ------------------------------------------------------------
+	// 4. Persist results back into the module annotations.
+	// ------------------------------------------------------------
+	for _, ext := range resp.Modules {
+		if mod, ok := moduleMap[ext.Name]; ok {
+			if mod.Annotation == nil {
+				mod.Annotation = &Annotation{}
+			}
+			mod.Annotation.ExternalContext = ext.ExternalContext
+		} else {
+			fmt.Printf("  WARNING: module %q not found in module map\n", ext.Name)
+		}
+	}
+
 	return nil
+}
+
+// collectAllModules returns a depth-first slice containing the provided module
+// and all of its children.
+func collectAllModules(root *Module) []*Module {
+	if root == nil {
+		return nil
+	}
+	var out []*Module
+	var walk func(*Module)
+	walk = func(mod *Module) {
+		out = append(out, mod)
+		for _, child := range mod.Modules {
+			walk(child)
+		}
+	}
+	walk(root)
+	return out
 }

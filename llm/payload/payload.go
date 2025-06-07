@@ -225,3 +225,9 @@ func getLanguageFromFilename(filename string) string {
 	// Default: no language specified.
 	return ""
 }
+
+// ModuleExternalContextResponse captures the LLM response when generating
+// external contexts for a set of modules.
+type ModuleExternalContextResponse struct {
+	Modules []ModuleExternalContext `json:"modules"`
+}
