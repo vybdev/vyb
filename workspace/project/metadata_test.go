@@ -40,6 +40,7 @@ func Test_buildMetadata(t *testing.T) {
 									Name: "folderA/folderB/file2.md",
 								},
 							},
+							Directories: []string{"folderA/folderB"},
 						},
 					},
 					Files: []*FileRef{
@@ -47,6 +48,7 @@ func Test_buildMetadata(t *testing.T) {
 							Name: "folderA/file1.txt",
 						},
 					},
+					Directories: []string{"folderA"},
 				},
 				{
 					Name: "folderC",
@@ -55,6 +57,7 @@ func Test_buildMetadata(t *testing.T) {
 							Name: "folderC/foo.go",
 						},
 					},
+					Directories: []string{"folderC"},
 				},
 			},
 		},
@@ -63,7 +66,7 @@ func Test_buildMetadata(t *testing.T) {
 	opts := []cmp.Option{
 		// ignore MD5 on both FileRef and Module for structural comparison
 		cmpopts.IgnoreFields(FileRef{}, "LastModified", "MD5", "TokenCount"),
-		cmpopts.IgnoreFields(Module{}, "MD5", "TokenCount"),
+		cmpopts.IgnoreFields(Module{}, "MD5", "TokenCount", "Parent"),
 		cmpopts.IgnoreUnexported(Module{}),
 		cmpopts.EquateEmpty(),
 		cmpopts.SortSlices(func(a, b *Module) bool { return a.Name < b.Name }),

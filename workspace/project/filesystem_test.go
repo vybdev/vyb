@@ -85,7 +85,7 @@ func TestBuildTree(t *testing.T) {
 
 	opts := []cmp.Option{
 		cmpopts.IgnoreFields(FileRef{}, "LastModified", "MD5", "TokenCount"),
-		cmpopts.IgnoreFields(Module{}, "MD5", "TokenCount", "childrenMD5", "localTokenCount", "Annotation"),
+		cmpopts.IgnoreFields(Module{}, "MD5", "TokenCount", "childrenMD5", "localTokenCount", "Annotation", "Parent", "Directories"),
 		cmpopts.IgnoreUnexported(Module{}),
 		cmpopts.EquateEmpty(),
 		// Sort slices for deterministic comparison.

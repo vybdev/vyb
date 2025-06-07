@@ -128,7 +128,7 @@ func BuildModuleContextUserMessage(projectRoot fs.FS, request *ModuleSelfContain
 		}
 	}
 
-	sb.WriteString("## Files in module `%s`\n")
+	sb.WriteString(fmt.Sprintf("## Files in module `%s`\n", rootPrefix))
 	// Emit root-module files.
 	for _, relFile := range request.FilePaths {
 		fullPath := resolvePath(rootPrefix, relFile)
