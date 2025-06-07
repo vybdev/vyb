@@ -15,7 +15,7 @@
             },
             "content": {
               "type": "string",
-              "description": "The new content for this file. This field is ignored is 'delete' is true."
+              "description": "The full content of the file. This will be used as a drop-in replacement of the previous file content. DO NOT OMIT UNCHANGED CONTENT! Use an empty string if 'delete' is true."
             },
             "delete": {
               "type": "boolean",

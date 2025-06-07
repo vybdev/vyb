@@ -2,14 +2,15 @@ package openai
 
 import (
 	"bytes"
-	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/dangazineu/vyb/llm/openai/internal/schema"
 	"github.com/dangazineu/vyb/llm/payload"
 	"io"
 	"net/http"
 	"os"
+	"time"
 )
 
 // message represents a single message in the chat conversation.
@@ -26,8 +27,8 @@ type request struct {
 }
 
 type responseFormat struct {
-	Type       string                 `json:"type"`
-	JSONSchema StructuredOutputSchema `json:"json_schema"`
+	Type       string                        `json:"type"`
+	JSONSchema schema.StructuredOutputSchema `json:"json_schema"`
 }
 
 // openaiResponse defines the expected response structure from the OpenAI API.
@@ -37,57 +38,60 @@ type openaiResponse struct {
 	} `json:"choices"`
 }
 
-// workspaceChangeProposal is an unexported struct backing the WorkspaceChangeProposal interface.
-type workspaceChangeProposal struct {
-	Description string               `json:"description,omitempty"`
-	Summary     string               `json:"summary,omitempty"`
-	Proposals   []fileChangeProposal `json:"proposals,omitempty"`
+type openaiErrorResponse struct {
+	OpenAIError struct {
+		Message string `json:"message"`
+		Type    string `json:"type"`
+		Param   string `json:"param"`
+		Code    string `json:"code"`
+	} `json:"error"`
 }
 
-// fileChangeProposal is an unexported struct backing the FileChangeProposal interface.
-type fileChangeProposal struct {
-	Filename string `json:"file_name,omitempty"`
-	Content  string `json:"content,omitempty"`
-	Delete   bool   `json:"delete,omitempty"`
+func (o openaiErrorResponse) Error() string {
+	return fmt.Sprintf("OpenAI API error: %s", o.OpenAIError.Message)
 }
 
-// Ensure workspaceChangeProposal implements WorkspaceChangeProposal.
-var _ payload.WorkspaceChangeProposal = (*workspaceChangeProposal)(nil)
-
-// Ensure fileChangeProposal implements FileChangeProposal.
-var _ payload.FileChangeProposal = (*fileChangeProposal)(nil)
-
-func (w *workspaceChangeProposal) GetDescription() string {
-	return w.Description
-}
-
-func (w *workspaceChangeProposal) GetSummary() string {
-	return w.Summary
-}
-
-func (w *workspaceChangeProposal) GetProposals() []payload.FileChangeProposal {
-	fp := make([]payload.FileChangeProposal, len(w.Proposals))
-	for i := range w.Proposals {
-		fp[i] = &w.Proposals[i]
+// GetModuleContext calls the LLM and returns a parsed ModuleSelfContainedContext value.
+func GetModuleContext(systemMessage, userMessage string) (*payload.ModuleSelfContainedContext, error) {
+	openaiResp, err := callOpenAI(systemMessage, userMessage, schema.GetModuleContextSchema(), "o4-mini")
+	if err != nil {
+		var openAIErrResp openaiErrorResponse
+		if errors.As(err, &openAIErrResp) {
+			if openAIErrResp.OpenAIError.Code == "rate_limit_exceeded" {
+				fmt.Printf("Rate limit exceeded, retrying after 30s\n")
+				<-time.After(30 * time.Second)
+				return GetModuleContext(systemMessage, userMessage)
+			}
+		}
+		return nil, err
 	}
-	return fp
+	var ctx payload.ModuleSelfContainedContext
+	if err := json.Unmarshal([]byte(openaiResp.Choices[0].Message.Content), &ctx); err != nil {
+		return nil, err
+	}
+	return &ctx, nil
 }
 
-func (f *fileChangeProposal) GetFileName() string {
-	return f.Filename
+// GetWorkspaceChangeProposals sends the given messages to the OpenAI API and
+// returns the structured workspace change proposal.
+func GetWorkspaceChangeProposals(systemMessage, userMessage string) (*payload.WorkspaceChangeProposal, error) {
+	model := "o3"
+
+	openaiResp, err := callOpenAI(systemMessage, userMessage, schema.GetWorkspaceChangeProposalSchema(), model)
+	if err != nil {
+		return nil, err
+	}
+
+	var proposal payload.WorkspaceChangeProposal
+	if err := json.Unmarshal([]byte(openaiResp.Choices[0].Message.Content), &proposal); err != nil {
+		return nil, err
+	}
+	return &proposal, nil
 }
 
-func (f *fileChangeProposal) GetContent() string {
-	return f.Content
-}
-
-func (f *fileChangeProposal) GetDelete() bool {
-	return f.Delete
-}
-
-// CallOpenAI sends the given developer and user messages to the OpenAI API using the specified model.
-// It returns the content of the first message from the API's response.
-func CallOpenAI(systemMessage, userMessage, model string) (payload.WorkspaceChangeProposal, error) {
+// callOpenAI sends a request to OpenAI, returns the parsed response, and logs
+// the request/response pair to a uniquely-named JSON file in the OS temp dir.
+func callOpenAI(systemMessage, userMessage string, structuredOutput schema.StructuredOutputSchema, model string) (*openaiResponse, error) {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
 		return nil, errors.New("OPENAI_API_KEY is not set")
@@ -108,7 +112,7 @@ func CallOpenAI(systemMessage, userMessage, model string) (payload.WorkspaceChan
 		},
 		ResponseFormat: responseFormat{
 			Type:       "json_schema",
-			JSONSchema: GetResponseSchema(),
+			JSONSchema: structuredOutput,
 		},
 	}
 
@@ -128,6 +132,7 @@ func CallOpenAI(systemMessage, userMessage, model string) (payload.WorkspaceChan
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	fmt.Printf("Fininshed calling OpenAI\n")
+
 	if err != nil {
 		fmt.Printf("Got an error back %v\n", err)
 		return nil, err
@@ -136,8 +141,14 @@ func CallOpenAI(systemMessage, userMessage, model string) (payload.WorkspaceChan
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		fmt.Printf("Response code %d, aborting\nOpenAI API error: %s\n", resp.StatusCode, string(bodyBytes))
-		return nil, fmt.Errorf("OpenAI API error: %s", string(bodyBytes))
+
+		var errorResp openaiErrorResponse
+		if err := json.Unmarshal(bodyBytes, &errorResp); err != nil {
+			fmt.Printf("Response code %d, aborting\nOpenAI API error: %s\n", resp.StatusCode, string(bodyBytes))
+			return nil, fmt.Errorf("OpenAI API error: %s", string(bodyBytes))
+		}
+
+		return nil, errorResp
 	}
 
 	respBytes, err := io.ReadAll(resp.Body)
@@ -155,37 +166,47 @@ func CallOpenAI(systemMessage, userMessage, model string) (payload.WorkspaceChan
 		return nil, errors.New("no choices returned from OpenAI")
 	}
 
-	var internal workspaceChangeProposal
-	if err := json.Unmarshal([]byte(openaiResp.Choices[0].Message.Content), &internal); err != nil {
+	// ------------------------------------------------------------
+	// Persist request and response to a unique temp-file for debug.
+	// ------------------------------------------------------------
+	logEntry := struct {
+		Request  json.RawMessage `json:"request"`
+		Response json.RawMessage `json:"response"`
+	}{
+		Request:  reqBytes,
+		Response: respBytes,
+	}
+
+	if logBytes, err := json.MarshalIndent(logEntry, "", "  "); err == nil {
+		if f, err := os.CreateTemp("", "vyb-openai-*.json"); err == nil {
+			if _, wErr := f.Write(logBytes); wErr == nil {
+				_ = f.Close()
+			} else {
+				fmt.Printf("error writing OpenAI log file: %v\n", wErr)
+			}
+			fmt.Printf("Wrote OpenAI log file to %s\n", f.Name())
+		} else {
+			fmt.Printf("error creating OpenAI log file: %v\n", err)
+		}
+	} else {
+		fmt.Printf("error marshalling OpenAI log entry: %v\n", err)
+	}
+
+	return &openaiResp, nil
+}
+
+// GetModuleExternalContexts calls the LLM and returns a list of external
+// context strings – one per module.
+func GetModuleExternalContexts(systemMessage, userMessage string) (*payload.ModuleExternalContextResponse, error) {
+	model := "o4-mini"
+	openaiResp, err := callOpenAI(systemMessage, userMessage, schema.GetModuleExternalContextSchema(), model)
+	if err != nil {
 		return nil, err
 	}
 
-	return &internal, nil
-}
-
-//go:embed schema/*
-var embedded embed.FS
-
-// GetResponseSchema reads configuration files from the embedded directory and parses the JSON schema.
-func GetResponseSchema() StructuredOutputSchema {
-	data, _ := embedded.ReadFile("schema/structured_output.json")
-	// Parse the JSON file into a temporary struct to extract the "schema" field.
-	var resp StructuredOutputSchema
-	_ = json.Unmarshal(data, &resp)
-	return resp
-}
-
-type StructuredOutputSchema struct {
-	Schema JSONSchema `json:"schema,omitempty"`
-	Name   string     `json:"name,omitempty"`
-	Strict bool       `json:"strict,omitempty"`
-}
-
-type JSONSchema struct {
-	Description          string                 `json:"description,omitempty"`
-	Type                 string                 `json:"type,omitempty"`
-	Properties           map[string]*JSONSchema `json:"properties,omitempty"`
-	Items                *JSONSchema            `json:"items,omitempty"`
-	Required             []string               `json:"required,omitempty"`
-	AdditionalProperties bool                   `json:"additionalProperties"`
+	var resp payload.ModuleExternalContextResponse
+	if err := json.Unmarshal([]byte(openaiResp.Choices[0].Message.Content), &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
 }
