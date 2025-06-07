@@ -213,6 +213,17 @@ func buildMetadata(fsys fs.FS) (*Metadata, error) {
 	return metadata, nil
 }
 
+// TODO(vyb): implement the Update function as follows:
+// 1 - when Update is called, it first loads the Metadata stored in the ./vyb/metadata.yaml, using loadStoredMetadata function. This Metadata object will have Annotation objects in it, because that's done before persisting.
+// 2 - loads a new fresh instance of a Metadata struct using the buildMetadata function. This will not have any Annotation in it, but it will have reflect the latest module structure and file contents.
+// 3 - execute the method Patch in the Metadata struct. You will need to implement this method, the logic is as follows:
+// 3.1 - Metadata.Patch takes a Metadata instance as a parameter, and recursively compares it with the target Metadata in which the method was invoked. If a module in the parameter does not exist in the target, it's copied to the target, if a module in the target does not exist in the parameter, it is deleted from the target. If a module exists in both, but its MD5 is different, the Annotation is set to nil.
+// 4 - call the annotate function on the patched Metadata instance
+// 5 - replace the existing metadata file
+func Update(projectRoot string) error {
+	return nil
+}
+
 // loadStoredMetadata reads the .vyb/metadata.yaml in the given fs.FS.
 // It parses its contents into a Metadata struct. If the file is
 // not found or if parsing fails, it returns an error.
