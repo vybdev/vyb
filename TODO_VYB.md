@@ -34,21 +34,25 @@ self-contained commit.
 5. [x] 🧩 **Module context wiring**
 6. [x] Introduce `--all` flag 
 7. [x] 🛡️ **Strengthen matcher & selector tests**
-    - Add cases ensuring that files outside `target_dir` are never
-      included.
-    - Add cases verifying that proposed modifications outside
-      `working_dir` are rejected.
+8. [ ] Rely on modules for final file inclusion within a request
+       After loading project `Metadata` from the `.vyb` directory, also load a fresh representation of the 
+       filesystem's `Metadata` using the `metadata.buildMetadata` function. Merge both instances of metadata, 
+       making sure that the final struct maintains the original annotations loaded from `.vyb`, but the new file lists, 
+       token counts and hashes loaded from the filesystem. Exit in error if you find the module names loaded from the 
+       filesystem don't match the modules persisted in the `.vyb` directory. 
 
-8. [ ] Ensure that when the `target_dir` is the same as the `project_root` all files directly located in the root 
+9.  [ ] Tidy up the code and remove any unnecessary logic related to this task list  
+
+10. [ ] Ensure that when the `target_dir` is the same as the `project_root` all files directly located in the root 
 module are included in the request. As of now, this is not the case. The only way as of now to include the files from 
 the root module in the request is with the `--all` flag, but that also includes files from sub-modules of the root 
 module, which is inefficient.
-
-9. [ ] 📚 **Update documentation**
+ 
+11. [ ] 📚 **Update documentation**
     - Amend `README.md` and command help to explain the three path
       concepts and new safety guarantees.
 
-10. [ ] ✅ **Cleanup**
+12. [ ] ✅ **Cleanup**
     - Remove obsolete helpers and dead code (e.g. the old
       `isPathUnderDir`).
     - Run `go test ./...` and ensure full pass.
