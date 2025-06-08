@@ -26,7 +26,7 @@ Below is a sequenced backlog of **atomic** changes required to reach the
 behaviour specified above.  Each bullet should result in a single,
 self-contained commit.
 
-1. [ ] 🔧 **Introduce `ExecutionContext` struct**
+1. [x] 🔧 **Introduce `ExecutionContext` struct**
     - Fields: `ProjectRoot`, `WorkingDir`, `TargetDir` (all *absolute*
       paths).
     - Add helper constructor that validates the invariants described in

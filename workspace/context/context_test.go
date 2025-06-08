@@ -58,7 +58,7 @@ func TestNewExecutionContext_ErrWorkingDirOutsideRoot(t *testing.T) {
 
 func TestNewExecutionContext_ErrTargetOutsideWork(t *testing.T) {
 	root, _ := setupProject(t)
-	work := root
+	work := filepath.Join(root, "some")
 	target := filepath.Join(root, "other", "file.txt")
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
