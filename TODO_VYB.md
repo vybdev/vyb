@@ -45,7 +45,7 @@ self-contained commit.
     - Keep exclusion / inclusion pattern processing unchanged.
     - Add unit tests covering edge-cases (same dir, sibling, parent).
 
-4. [ ] 🚦 **Enforce write-scope restrictions**
+4. [x] 🚦 **Enforce write-scope restrictions**
     - In `cmd/template.execute` replace `isPathUnderDir` logic with a
       check against `ExecutionContext.WorkingDir`.
     - Remove the standalone `isPathUnderDir` helper once migrated.

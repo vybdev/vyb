@@ -55,28 +55,6 @@ type Definition struct {
 	LongDescription string `yaml:"longDescription"`
 }
 
-// isPathUnderDir returns true when relPath is the same as workDir or resides
-// inside it (workDir is treated as a directory prefix). Both parameters MUST
-// be relative paths using the OS path separator. If workDir equals "." it is
-// considered the workspace root and every path is allowed.
-func isPathUnderDir(workDir, relPath string) bool {
-	if workDir == "" || workDir == "." {
-		return true // root working directory – everything is allowed
-	}
-
-	cleanWD := filepath.Clean(workDir)
-	cleanPath := filepath.Clean(relPath)
-
-	if cleanWD == cleanPath {
-		return true
-	}
-
-	// Ensure the prefix ends with the OS separator so that sibling folders are
-	// not incorrectly matched (e.g. "foo" should not match "foobar").
-	prefix := cleanWD + string(os.PathSeparator)
-	return strings.HasPrefix(cleanPath, prefix)
-}
-
 // prepareExecutionContext builds and validates an ExecutionContext based on
 // the current working directory and an optional *target* argument.
 func prepareExecutionContext(target *string) (*context.ExecutionContext, error) {
@@ -130,8 +108,6 @@ func execute(cmd *cobra.Command, args []string, def *Definition) error {
 	}
 
 	absRoot := ec.ProjectRoot
-	// workingDir relative to project root ("." if identical).
-	relWorkDir, _ := filepath.Rel(absRoot, ec.WorkingDir)
 
 	// relTarget is the *file* provided by the user (if any), relative to root.
 	var relTarget *string
@@ -186,19 +162,34 @@ func execute(cmd *cobra.Command, args []string, def *Definition) error {
 		return err
 	}
 
+	// --------------------------------------------------------
 	// Validate that every file in the proposal is allowed to be modified.
+	// --------------------------------------------------------
 	invalidFiles := []string{}
+
+	// helper closure to assert path containment using absolute paths.
+	isWithinDir := func(dir, candidate string) bool {
+		dir = filepath.Clean(dir)
+		candidate = filepath.Clean(candidate)
+		if dir == candidate {
+			return true
+		}
+		return strings.HasPrefix(candidate, dir+string(os.PathSeparator))
+	}
+
 	for _, prop := range proposal.Proposals {
 		// 1. Pattern based validation (existing behaviour).
 		if !matcher.IsIncluded(rootFS, prop.FileName, append(systemExclusionPatterns, def.ModificationExclusionPatterns...), def.ModificationInclusionPatterns) {
 			invalidFiles = append(invalidFiles, prop.FileName)
 			continue
 		}
-		// 2. Must reside within the working_dir.
-		if !isPathUnderDir(relWorkDir, prop.FileName) {
+		// 2. Must reside within the working_dir using absolute paths.
+		absProp := filepath.Join(absRoot, prop.FileName)
+		if !isWithinDir(ec.WorkingDir, absProp) {
 			invalidFiles = append(invalidFiles, prop.FileName+" (outside working_dir)")
 		}
 	}
+
 	if len(invalidFiles) > 0 {
 		return fmt.Errorf("change proposal contains modifications to unallowed files: %v", invalidFiles)
 	}
