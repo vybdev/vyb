@@ -48,7 +48,7 @@ module, which is inefficient.
     - Amend `README.md` and command help to explain the three path
       concepts and new safety guarantees.
 
-9. [ ] ✅ **Cleanup**
+10. [ ] ✅ **Cleanup**
     - Remove obsolete helpers and dead code (e.g. the old
       `isPathUnderDir`).
     - Run `go test ./...` and ensure full pass.
