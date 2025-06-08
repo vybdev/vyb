@@ -1,15 +1,36 @@
-# llm Directory
+# llm Package
 
-This folder houses logic for interacting with the OpenAI API as well as
-for building and parsing the requests and responses used by the `vyb` CLI.
+`llm` wraps all interaction with OpenAI and exposes strongly-typed data
+structures so the rest of the codebase never has to deal with raw JSON.
 
-## openai Package
+## Sub-packages
 
-Implements the HTTP calls to the OpenAI API, using a structured request
-and response format. The `CallOpenAI` function returns proposed file
-changes that the CLI then applies.
+### `llm/openai`
 
-## payload Package
+* Builds requests (`model`, messages, `response_format`).
+* Retries on `rate_limit_exceeded`.
+* Dumps every request/response pair to a temporary JSON file for easy
+debugging.
+* Public helpers:
+  * `GetWorkspaceChangeProposals` – returns a list of file edits + commit
+    message.
+  * `GetModuleContext` – summarises a module into *internal* & *public*
+    contexts.
+  * `GetModuleExternalContexts` – produces *external* contexts in bulk.
 
-Defines the data structures for building the user message payload and
-for interpreting the AI's proposed modifications to the workspace.
+### `llm/payload`
+
+Pure data & helper utilities:
+
+* `BuildUserMessage` – turns a list of files into a Markdown payload.
+* `BuildModuleContextUserMessage` – embeds annotations into the payload
+  according to precise inclusion rules.
+* Go structs mirroring every JSON schema (WorkspaceChangeProposal,
+  ModuleSelfContainedContext, …).
+
+## JSON Schema enforcement
+
+The JSON responses expected from the LLM are described under
+`llm/openai/internal/schema/schemas/*.json`.  Each request sets the
+`json_schema` field so GPT returns **validatable, deterministic** output
+that can be unmarshalled straight into Go types.
