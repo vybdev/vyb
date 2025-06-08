@@ -261,14 +261,16 @@ func Register(rootCmd *cobra.Command) error {
 	// Register subcommands.
 	defs := load()
 	for _, def := range defs {
-		rootCmd.AddCommand(&cobra.Command{
+		cmd := &cobra.Command{
 			Use:   def.Name,
 			Long:  def.LongDescription,
 			Short: def.ShortDescription,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return execute(cmd, args, def)
 			},
-		})
+		}
+		cmd.Flags().BoolP("all", "a", false, "include all files, even those in descendant modules")
+		rootCmd.AddCommand(cmd)
 	}
 	return nil
 }
