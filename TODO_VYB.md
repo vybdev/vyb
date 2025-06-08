@@ -28,41 +28,12 @@ behaviour specified above.  Each bullet should result in a single,
 self-contained commit.
 
 1. [x] 🔧 **Introduce `ExecutionContext` struct**
-    - Fields: `ProjectRoot`, `WorkingDir`, `TargetDir` (all *absolute*
-      paths).
-    - Add helper constructor that validates the invariants described in
-      *What You Should Do*.
-    - Place the new type in `workspace/context` (new package) so it can
-      be reused by selector, template and tests.
-
 2. [x] 🧹 **Refactor `cmd/template.prepareExecutionContext`**
-    - Replace current tuple return with the new `ExecutionContext`.
-    - Ensure CLI commands fail fast when `target_file` is outside
-      `working_dir`.
-
 3. [x] 📁 **Update `selector.Select` signature**
-    - Accept `ExecutionContext` instead of loose params.
-    - Implement inclusion logic: *all files under `target_dir`*.
-    - Keep exclusion / inclusion pattern processing unchanged.
-    - Add unit tests covering edge-cases (same dir, sibling, parent).
-
 4. [x] 🚦 **Enforce write-scope restrictions**
-    - In `cmd/template.execute` replace `isPathUnderDir` logic with a
-      check against `ExecutionContext.WorkingDir`.
-    - Remove the standalone `isPathUnderDir` helper once migrated.
-
 5. [x] 🧩 **Module context wiring**
-    - Enhance `openai.GetWorkspaceChangeProposals` (or the functions it calls)
-      to compose module contexts according to the bullets under
-      *`openai.GetWorkspaceChangeProposals` should leverage*.
-    - Add exhaustive unit tests using in-memory module trees.
-
 6. [x] Introduce `--all` flag 
-   - In the templated command execution (`cmd/template/template.go`), if `--all` is set, 
-     include all files under the `target_dir` and any of its sub-modules.
-   - Adjust tests accordingly.
-
-7. [ ] 🛡️ **Strengthen matcher & selector tests**
+7. [x] 🛡️ **Strengthen matcher & selector tests**
     - Add cases ensuring that files outside `target_dir` are never
       included.
     - Add cases verifying that proposed modifications outside

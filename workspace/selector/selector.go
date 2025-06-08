@@ -101,8 +101,7 @@ func Select(projectRoot fs.FS, ec *context.ExecutionContext, exclusionPatterns, 
 		}
 
 		parentDir := path.Dir(currPath)
-		parentExcl := effectiveExclusions[parentDir]
-		parentExcl = append(parentExcl, exclusionPatterns...)
+		parentExcl := append(exclusionPatterns, effectiveExclusions[parentDir]...)
 
 		// --------------------------------------------------------
 		// Directory processing

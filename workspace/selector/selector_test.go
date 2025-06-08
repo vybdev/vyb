@@ -97,6 +97,42 @@ func TestSelect(t *testing.T) {
 	}
 }
 
+// TestSelect_TargetDirIsolation ensures that Select never returns files that
+// live outside ec.TargetDir – even when they share part of the path or match
+// the inclusion patterns. This guards against accidental context leakage to
+// the LLM caused by future regressions in the traversal logic.
+func TestSelect_TargetDirIsolation(t *testing.T) {
+	fsys := fstest.MapFS{
+		"root/work/a.txt":     {Data: []byte("w a")},
+		"root/work/b.txt":     {Data: []byte("w b")},
+		"root/work/sub/c.txt": {Data: []byte("w sub c")},
+		"root/other/x.txt":    {Data: []byte("o x")},
+	}
+
+	// Simulate: project_root = root, working_dir = root/work, target = work/sub/c.txt
+	// We expect only files under work/sub to be selected.
+	targetFile := "root/work/sub/c.txt"
+	ec := &context.ExecutionContext{
+		ProjectRoot: ".",
+		WorkingDir:  "root/work",
+		TargetDir:   filepath.Dir(targetFile),
+	}
+
+	got, err := Select(fsys, ec, []string{}, []string{"*"})
+
+	if err != nil {
+		t.Fatalf("Select returned error: %v", err)
+	}
+
+	want := []string{
+		"root/work/sub/c.txt",
+	}
+
+	if diff := cmp.Diff(want, got, cmpopts.EquateEmpty()); diff != "" {
+		t.Fatalf("selected paths mismatch (-want +got):\n%s", diff)
+	}
+}
+
 func target(t string) *string {
 	return &t
 }
