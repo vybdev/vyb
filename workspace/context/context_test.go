@@ -7,16 +7,16 @@ import (
 )
 
 // helper to create temp project with optional sub-dirs/files.
-func setupProject(t *testing.T) (root string, cleanup func()) {
+func setupProject(t *testing.T) string {
 	dir := t.TempDir()
 	if err := os.Mkdir(filepath.Join(dir, ".vyb"), 0o755); err != nil {
 		t.Fatalf("failed to create .vyb: %v", err)
 	}
-	return dir, func() {}
+	return dir
 }
 
 func TestNewExecutionContext_ValidNoTarget(t *testing.T) {
-	root, _ := setupProject(t)
+	root := setupProject(t)
 
 	ec, err := NewExecutionContext(root, root, nil)
 	if err != nil {
@@ -28,7 +28,7 @@ func TestNewExecutionContext_ValidNoTarget(t *testing.T) {
 }
 
 func TestNewExecutionContext_ValidWithTarget(t *testing.T) {
-	root, _ := setupProject(t)
+	root := setupProject(t)
 	work := filepath.Join(root, "sub")
 	if err := os.MkdirAll(work, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
@@ -48,7 +48,7 @@ func TestNewExecutionContext_ValidWithTarget(t *testing.T) {
 }
 
 func TestNewExecutionContext_ErrWorkingDirOutsideRoot(t *testing.T) {
-	root, _ := setupProject(t)
+	root := setupProject(t)
 	outside := filepath.Dir(root) // parent of root
 	_, err := NewExecutionContext(root, outside, nil)
 	if err == nil {
@@ -57,7 +57,7 @@ func TestNewExecutionContext_ErrWorkingDirOutsideRoot(t *testing.T) {
 }
 
 func TestNewExecutionContext_ErrTargetOutsideWork(t *testing.T) {
-	root, _ := setupProject(t)
+	root := setupProject(t)
 	work := filepath.Join(root, "some")
 	target := filepath.Join(root, "other", "file.txt")
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
