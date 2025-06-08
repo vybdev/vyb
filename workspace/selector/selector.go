@@ -33,45 +33,80 @@ func Select(projectRoot fs.FS, ec *context.ExecutionContext, exclusionPatterns, 
 	}
 
 	// Compute the directory (relative to project root) that will seed the
-	// walk – guaranteed to be within the workspace as enforced by
-	// ExecutionContext.
+	// comparisons when deciding which files to include. This is guaranteed to
+	// be within the workspace as enforced by ExecutionContext.
 	relStart := "."
 	if rel, err := filepath.Rel(ec.ProjectRoot, ec.TargetDir); err == nil {
 		relStart = filepath.ToSlash(rel)
 	}
+
+	// ------------------------------------------------------------
+	// Helper predicates
+	// ------------------------------------------------------------
+
+	// isDescendant returns true when p == target or p is nested somewhere under
+	// target.
+	isDescendant := func(p, target string) bool {
+		if target == "." {
+			return true
+		}
+		p = path.Clean(p)
+		target = path.Clean(target)
+		return p == target || strings.HasPrefix(p+"/", target+"/")
+	}
+
+	// isAncestor returns true when p == target or p is an ancestor directory of
+	// target.
+	isAncestor := func(p, target string) bool {
+		if p == "." {
+			return true
+		}
+		p = path.Clean(p)
+		target = path.Clean(target)
+		return p == target || strings.HasPrefix(target+"/", p+"/")
+	}
+
+	// A directory is relevant if it is the target itself, one of its ancestors
+	// or one of its descendants.
+	isRelevantDir := func(dir string) bool {
+		return isAncestor(dir, relStart) || isDescendant(dir, relStart)
+	}
+
+	// ------------------------------------------------------------
+	// Walk preparation
+	// ------------------------------------------------------------
 
 	// effectiveExclusions keeps the accumulated exclusion patterns per dir.
 	effectiveExclusions := map[string][]string{}
 
 	var results []string
 
-	// Helper: determines if a given path (directory) is *inside* relStart –
-	// used to prune walkDir.
-	isWithinStart := func(p string) bool {
-		if relStart == "." {
-			return true
-		}
-		p = path.Clean(p)
-		relStartClean := path.Clean(relStart)
-		return p == relStartClean || strings.HasPrefix(p+"/", relStartClean+"/")
-	}
-
 	err := fs.WalkDir(projectRoot, ".", func(currPath string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		// Skip anything outside targetDir just in case WalkDir goes up due to
-		// relStart == ".".
-		if !isWithinStart(currPath) {
-			return fs.SkipDir
+		// --------------------------------------------------------
+		// Relevance filtering – keep the traversal tight.
+		// --------------------------------------------------------
+		if d.IsDir() {
+			if !isRelevantDir(currPath) {
+				return fs.SkipDir
+			}
+		} else {
+			// Skip files that are not inside the target subtree.
+			if !isDescendant(currPath, relStart) {
+				return nil
+			}
 		}
 
 		parentDir := path.Dir(currPath)
 		parentExcl := effectiveExclusions[parentDir]
 		parentExcl = append(parentExcl, exclusionPatterns...)
 
-		// Directory handling.
+		// --------------------------------------------------------
+		// Directory processing
+		// --------------------------------------------------------
 		if d.IsDir() {
 			// Apply parent exclusion patterns to decide whether to descend.
 			if matcher.IsExcluded(projectRoot, currPath, parentExcl) {
@@ -82,7 +117,9 @@ func Select(projectRoot fs.FS, ec *context.ExecutionContext, exclusionPatterns, 
 			return nil
 		}
 
-		// File: include if patterns allow.
+		// --------------------------------------------------------
+		// File processing
+		// --------------------------------------------------------
 		if matcher.IsIncluded(projectRoot, currPath, parentExcl, inclusionPatterns) {
 			results = append(results, currPath)
 		}
