@@ -2,8 +2,8 @@ package project
 
 import (
 	"fmt"
-	"github.com/dangazineu/vyb/llm/openai"
-	"github.com/dangazineu/vyb/llm/payload"
+	"github.com/vybdev/vyb/llm/openai"
+	"github.com/vybdev/vyb/llm/payload"
 	"io/fs"
 	"strings"
 )

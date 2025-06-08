@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/dangazineu/vyb/workspace/project"
 	"github.com/spf13/cobra"
+	"github.com/vybdev/vyb/workspace/project"
 )
 
 var initCmd = &cobra.Command{

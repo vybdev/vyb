@@ -1,6 +1,6 @@
 package main
 
-import "github.com/dangazineu/vyb/cmd"
+import "github.com/vybdev/vyb/cmd"
 
 func main() {
 	cmd.Execute()

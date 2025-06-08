@@ -7,13 +7,13 @@ import (
 	"strings"
 
 	"github.com/cbroglie/mustache"
-	"github.com/dangazineu/vyb/llm/openai"
-	"github.com/dangazineu/vyb/llm/payload"
-	"github.com/dangazineu/vyb/workspace/context"
-	"github.com/dangazineu/vyb/workspace/matcher"
-	"github.com/dangazineu/vyb/workspace/project"
-	"github.com/dangazineu/vyb/workspace/selector"
 	"github.com/spf13/cobra"
+	"github.com/vybdev/vyb/llm/openai"
+	"github.com/vybdev/vyb/llm/payload"
+	"github.com/vybdev/vyb/workspace/context"
+	"github.com/vybdev/vyb/workspace/matcher"
+	"github.com/vybdev/vyb/workspace/project"
+	"github.com/vybdev/vyb/workspace/selector"
 )
 
 var systemExclusionPatterns = []string{

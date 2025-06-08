@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/dangazineu/vyb/workspace/context"
-	"github.com/dangazineu/vyb/workspace/matcher"
+	"github.com/vybdev/vyb/workspace/context"
+	"github.com/vybdev/vyb/workspace/matcher"
 )
 
 // Select walks the workspace starting from ec.TargetDir (relative to the
