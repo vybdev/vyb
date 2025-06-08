@@ -12,10 +12,10 @@ File inclusions are based on those concepts.
 - Every file under the `target_dir` is included in the request;
 - Only files under the `working_dir` can be changed;
 
-Module summaries should leverage these concepts as well:
+`openai.GetWorkspaceChangeProposals` should leverage these concepts to incorporate Module summaries within the request, as follows:
 
 - Every request should start with the `External Context` of the module that contains the `working_dir`;
-- If the `target_dir` is contained in a module that is not the same as the `working_dir`, the request should include:
+- If the `target_dir` is contained in a module that is not the same as the `working_dir`'s module, the request should include:
   -  the `Internal Context` of every module between `working_dir` and `target_dir`;
   - the `Public Context` or every topmost module under `working_dir` that is not a parent of `target_dir`;
 - Only files within the module that holds the `target_dir` should be included, if that module has sub-modules, the `Public Context` of the topmost sub-modules will also be included in the request;
@@ -51,9 +51,9 @@ self-contained commit.
     - Remove the standalone `isPathUnderDir` helper once migrated.
 
 5. [ ] 🧩 **Module context wiring**
-    - Enhance `payload.BuildModuleContextUserMessage` (or a new helper)
+    - Enhance `openai.GetWorkspaceChangeProposals` (or the functions it calls)
       to compose module contexts according to the bullets under
-      *Module summaries should leverage*.
+      *`openai.GetWorkspaceChangeProposals` should leverage*.
     - Add exhaustive unit tests using in-memory module trees.
 
 6. [ ] 🛡️ **Strengthen matcher & selector tests**
