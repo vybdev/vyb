@@ -34,14 +34,15 @@ self-contained commit.
 5. [x] 🧩 **Module context wiring**
 6. [x] Introduce `--all` flag 
 7. [x] 🛡️ **Strengthen matcher & selector tests**
-8. [ ] Rely on modules for final file inclusion within a request
+8. [x] Rely on modules for final file inclusion within a request
        After loading project `Metadata` from the `.vyb` directory, also load a fresh representation of the 
        filesystem's `Metadata` using the `metadata.buildMetadata` function. Merge both instances of metadata, 
        making sure that the final struct maintains the original annotations loaded from `.vyb`, but the new file lists, 
        token counts and hashes loaded from the filesystem. Exit in error if you find the module names loaded from the 
        filesystem don't match the modules persisted in the `.vyb` directory. 
 
-9.  [ ] Tidy up the code and remove any unnecessary logic related to this task list  
+9.  [ ] Tidy up the code and remove any unnecessary logic related to this task list. 
+        Move all the `Metadata` and `Module` parsing logic from the `cmd/template` module back into the `workspace/metadata` module. Unexport everything that can be safely unexported, and remove every function that is no longer used.
 
 10. [ ] Ensure that when the `target_dir` is the same as the `project_root` all files directly located in the root 
 module are included in the request. As of now, this is not the case. The only way as of now to include the files from 
@@ -56,8 +57,3 @@ module, which is inefficient.
     - Remove obsolete helpers and dead code (e.g. the old
       `isPathUnderDir`).
     - Run `go test ./...` and ensure full pass.
-
-## How You Should Do it
-- One by one, implement each of the tasks listed in the "TODO List" of this file. Each execution should complete an entire task in that list, and mark it as completed, by updating this file and replacing "[ ]" with "[x]";
-- For every change you make, include updated tests and documentation. If you decide not to change tests or documentation as part of a given TODO, include a justification in the `description` of the `workspace_change_proposal`;
-- ALWAYS return the full content of any file you change. The content you return will be used to *replace* the content of the file. If you send back just a partial delta, the file will be broken.

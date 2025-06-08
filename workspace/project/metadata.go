@@ -166,6 +166,17 @@ func Create(projectRoot string) error {
 	return nil
 }
 
+// BuildMetadataFS exposes the internal buildMetadata helper so that external
+// packages (e.g. cmd/template) can generate a *fresh* snapshot of the workspace
+// file structure without losing the richer annotation data stored on disk.
+//
+// The behaviour is identical to buildMetadata – it walks the filesystem rooted
+// at the provided fs.FS, produces a full Module/File hierarchy and returns the
+// resulting *Metadata.
+func BuildMetadataFS(fsys fs.FS) (*Metadata, error) {
+	return buildMetadata(fsys)
+}
+
 // buildMetadata builds a metadata representation for the files available in
 // the given filesystem
 func buildMetadata(fsys fs.FS) (*Metadata, error) {
