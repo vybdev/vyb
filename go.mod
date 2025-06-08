@@ -1,4 +1,4 @@
-module github.com/dangazineu/vyb
+module github.com/vybdev/vyb
 
 go 1.24
 

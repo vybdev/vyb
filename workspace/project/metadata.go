@@ -4,7 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
-	"github.com/dangazineu/vyb/workspace/context"
+	"github.com/vybdev/vyb/workspace/context"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -14,7 +14,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/dangazineu/vyb/workspace/selector"
+	"github.com/vybdev/vyb/workspace/selector"
 )
 
 // Metadata represents the project-specific metadata file. Only one Metadata

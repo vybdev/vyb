@@ -6,8 +6,8 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/dangazineu/vyb/workspace/context"
-	"github.com/dangazineu/vyb/workspace/project"
+	"github.com/vybdev/vyb/workspace/context"
+	"github.com/vybdev/vyb/workspace/project"
 )
 
 func Test_buildExtendedUserMessage(t *testing.T) {

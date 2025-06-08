@@ -2,9 +2,9 @@ package selector
 
 import (
 	"fmt"
-	"github.com/dangazineu/vyb/workspace/context"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/vybdev/vyb/workspace/context"
 	"path/filepath"
 	"testing"
 	"testing/fstest"

@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/dangazineu/vyb/cmd/template"
 	"github.com/spf13/cobra"
+	"github.com/vybdev/vyb/cmd/template"
 	"os"
 )
 

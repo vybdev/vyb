@@ -1,79 +1,136 @@
 # vyb
 
-`vyb` is a CLI that helps you iteratively develop applications, faster. 
-With 'vyb', you can refine your application spec, generate or update code, or provide your own command extensions to 
-perform tasks that are relevant to your application workspace.
+`vyb` is an AI-assisted command-line companion that helps developers
+iterate on code, documentation and specifications **without having to
+craft prompts by hand**.  It wraps common workflows (code generation,
+refactoring, documentation, spec maintenance, …) into deterministic CLI
+commands that:
 
-## Vision
-The vision for `vyb` is that it will provide a workflow for developers to collaborate with AI, through well-defined 
-commands that encapsulate intent and avoid repetitive activities like drafting a prompt or choosing which files to 
-include in every interaction with the LLM. 
+1. **Select the right context** – only the files relevant for the task
+   are sent to the LLM.
+2. **Apply guarded changes** – proposed modifications are validated
+   against allow/deny patterns before touching the working tree.
+3. **Generate commit messages** – every LLM reply already contains a
+   Conventional Commit message so you can just `git commit -F` it.  (WIP)
 
-Each `vyb` command has a filter for which workspace files should be included in the request to the LLM, and which files 
-are allowed to be modified by the LLM's response.
+---
 
-### Workflow
-The envisioned workflow for `vyb` is as follows:
-- `vyb refine` will help the developer draft requirements for their application, marking which features are already 
-implemented and which still need to be implemented. This could be connected with GitHub API, to link the issue # to the 
-spec element. In this case, the first step in implementing an issue would be to add it as a TODO in the SPEC;
--  `vyb code` implements either a `TODO(vyb)` in the code, or a TODO SPEC element. As of now, this command relies 
-heavily on `TODO(vyb)` for prioritization, and doesn't really know how to pick a SPEC element to implement. It would be 
-good to find a better way to tell the CLI which specific task needs to be executed each time the command is called;
-- `vyb document` updates README.md files to reflect the application code. Ideally, this activity would be done 
-atomically when `vyb code` runs, but the prompt isn't there yet. But even after that is resolved, this command will 
-continue to be useful because the developer may manually change code and allow it to drift over time;
-- `vyb inferspec` ensures any manual modifications made to the code are reflected back in the SPEC.md files;
+## Installation
 
-### Git Integration
-Every command execution gets a list of files to be modified, along with a commit message. For now, the commit message is 
-only printed in the output for the user to see, but the goal is to store it in the `.vyb/` folder, alongside the list of 
-modified files. After reviewing the proposed modifications, the user will then run `vyb accept`, at which point `vyb` 
-would stage and commit the changes, using the commit message provided by the LLM.
+Requirements:
 
-### LLM Quotas
-`vyb` only includes files that match the command filtering criteria under the directory in which it is executed, plus 
-any of its sub-directories. This is to limit the number of tokens sent to the LLM, but it could also hurt the LLM's 
-ability to resolve a problem if it doesn't have all the context it needs.  
-Still to be developed, is a summarization logic that will produce embeddings at each relevant application folder,
-allowing for better contextualization even when executing `vyb` within a module and not passing it the entire codebase.
+* Go ≥ 1.24
+* A valid OpenAI API key (export `OPENAI_API_KEY`)
 
-This is a high priority feature to be implemented soon, since even vyb's codebase is already reaching o1's token limits 
-for certain prompts.
+```bash
+# install the latest directly from github
+$ go install github.com/vybdev/vyb
 
-## Features
+# make the binary discoverable
+# if #GOPATH is not set in your environment, it is usually under $HOME/go
+$ export PATH=$GOPATH/bin:$PATH
+```
 
-- Iterative specification refinement and code generation
-- Automated project file detection and filtering
-- Integration with OpenAI for advanced language-based tasks
-- Modular command structure using Cobra
+> TIP Run `vyb --help` at any time to see all registered commands.
 
-## Getting Started
+---
 
-1. Install Go 1.24 or later.
-2. Clone this repository.
-3. Build the CLI using:
-   go build -o vyb
-4. Obtain an OpenAI API key and store it in the OPENAI_API_KEY env var.
+## Quick-start
 
-## Basic Usage
+```bash
+# initialise metadata at the repository root
+$ vyb init
 
-Below are some key commands:
+# ask the LLM to implement a TODO in the current module
+$ vyb code my/pkg/handler.go
 
-• Initialize project:
-  vyb init
+# refresh documentation after a big refactor
+$ vyb document -a   # -a ⇒ include *all* modules
+```
 
-• Remove project metadata:
-  vyb remove [--force-root]
+All commands only **stage changes** locally; no commit is created.  After
+reviewing the alterations you can commit them with the message suggested
+by `vyb`.
 
-• Summarize code and docs:
-  vyb summarize
+---
 
-• Refine specifications:
-  vyb refine [SPEC.md]
+## Built-in commands
 
-• Implement code:
-  vyb code [SPEC.md]
+| Command        | Purpose                                                    |
+|----------------|------------------------------------------------------------|
+| `init`         | Create `.vyb/metadata.yaml` in the project root            |
+| `update`       | Re-scan workspace, merge & (re)generate annotations        |
+| `remove`       | Delete `.vyb` completely                                   |
+| `code`         | Implement `TODO(vyb)`s or the file passed as argument      |
+| `document`     | Generate / refresh `README.md` files                       |
+| `refine`       | Polish `SPEC.md` content                                   |
+| `inferspec`    | Make spec match the *current* codebase                     |
 
-Check out the subdirectory README files for deeper insights into the
-application's architecture.
+Flags accepted by **all** AI-driven commands:
+
+* `-a, --all` – include every file in the project, not only the current
+  module.
+
+---
+
+## Core concepts
+
+### Project metadata (`.vyb/metadata.yaml`)
+
+A hierarchical representation of the workspace:
+
+* **Module** – a folder treated as a logical unit.  Stores token counts,
+  MD5 digests and an *Annotation* (see below).
+* **FileRef** – path, checksum and token count for each file.
+
+The metadata is fully derived from the file system; you should never
+edit it manually.
+
+### Annotations
+
+`vyb` records three complementary summaries for every module:
+
+* **Internal context** – what lives *inside* the module (private view).
+* **Public context** – what the module (and its children) expose.
+* **External context** – how the module fits in the *overall* application.
+
+These texts are generated with the help of the LLM and later injected
+into prompts to reduce the number of files that need to be submitted in each request.
+
+---
+
+## Architecture overview
+
+```
+cmd/            entry-points and Cobra command wiring
+  template/     YAML + Mustache definitions used by AI commands
+llm/            OpenAI API wrapper + strongly typed JSON payloads
+workspace/      file selection, .gitignore handling, metadata evolution
+```
+
+Flow of an AI command (`vyb code` for instance):
+
+1. "template" loads the prompt YAML, computes inclusion/exclusion sets.
+2. "selector" walks the workspace to gather the right files.
+3. The user & system messages are built, then sent to `llm/openai`.
+4. The JSON reply is validated and applied to the working tree.
+
+---
+
+## Extending `vyb`
+
+Put additional `.vyb` YAML templates under:
+
+* `$VYB_HOME/cmd/` – globally available commands.
+* `.vyb/cmd/` inside your project – repo-local commands *(planned)*.
+
+See `cmd/template/embedded/code.vyb` for the field reference.
+
+---
+
+## Development & Testing
+
+* Unit tests: `go test ./...`
+* Lint / CI:   see `.github/workflows/go.yml`
+
+Feel free to open issues or PRs – all contributions are welcome!
