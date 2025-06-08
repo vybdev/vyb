@@ -97,6 +97,11 @@ func execute(cmd *cobra.Command, args []string, def *Definition) error {
 		return fmt.Errorf("command \"%s\" expects no arguments, but got %v", cmd.Use, args)
 	}
 
+	// ---------------------------
+	// Retrieve --all flag value.
+	// ---------------------------
+	includeAll, _ := cmd.Flags().GetBool("all")
+
 	var target *string
 	if len(args) > 0 {
 		target = &args[0]
@@ -130,6 +135,27 @@ func execute(cmd *cobra.Command, args []string, def *Definition) error {
 		return err
 	}
 
+	// ------------------------------------------------------------
+	// Unless --all is provided, filter out files that belong to
+	// descendant modules of the target module (i.e. keep only files
+	// whose module == targetModule).
+	// ------------------------------------------------------------
+	meta, _ := project.LoadMetadata(absRoot)
+	if !includeAll && meta != nil && meta.Modules != nil {
+		relTargetDir, _ := filepath.Rel(absRoot, ec.TargetDir)
+		relTargetDir = filepath.ToSlash(relTargetDir)
+		targetModule := project.FindModule(meta.Modules, relTargetDir)
+		if targetModule != nil {
+			var filtered []string
+			for _, f := range files {
+				if project.FindModule(meta.Modules, f) == targetModule {
+					filtered = append(filtered, f)
+				}
+			}
+			files = filtered
+		}
+	}
+
 	fmt.Printf("The following files will be included in the request:\n")
 	for _, file := range files {
 		if relTarget != nil && file == *relTarget {
@@ -139,7 +165,6 @@ func execute(cmd *cobra.Command, args []string, def *Definition) error {
 		}
 	}
 
-	meta, _ := project.LoadMetadata(absRoot)
 	userMsg, err := buildExtendedUserMessage(rootFS, meta, ec, files)
 	if err != nil {
 		return err

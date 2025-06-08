@@ -57,7 +57,7 @@ self-contained commit.
       *`openai.GetWorkspaceChangeProposals` should leverage*.
     - Add exhaustive unit tests using in-memory module trees.
 
-6. [ ] Introduce `--all` flag 
+6. [x] Introduce `--all` flag 
    - In the templated command execution (`cmd/template/template.go`), if `--all` is set, 
      include all files under the `target_dir` and any of its sub-modules.
    - Adjust tests accordingly.
