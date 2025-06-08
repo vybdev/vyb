@@ -136,12 +136,6 @@ func execute(cmd *cobra.Command, args []string, def *Definition) error {
 	}
 
 	// ------------------------------------------------------------
-	// Unless --all is provided, filter out files that belong to
-	// descendant modules of the target module (i.e. keep only files
-	// whose module == targetModule).
-	// ------------------------------------------------------------
-
-	// ------------------------------------------------------------
 	// Load stored metadata (with annotations) and merge with a fresh
 	// snapshot produced from the current filesystem state. This
 	// guarantees we operate with up-to-date file information while
@@ -165,6 +159,11 @@ func execute(cmd *cobra.Command, args []string, def *Definition) error {
 	storedMeta.Patch(freshMeta)
 	meta := storedMeta
 
+	// ------------------------------------------------------------
+	// Unless --all is provided, filter out files that belong to
+	// descendant modules of the target module (i.e. keep only files
+	// whose module == targetModule).
+	// ------------------------------------------------------------
 	if !includeAll && meta.Modules != nil {
 		relTargetDir, _ := filepath.Rel(absRoot, ec.TargetDir)
 		relTargetDir = filepath.ToSlash(relTargetDir)
