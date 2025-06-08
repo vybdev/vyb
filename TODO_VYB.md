@@ -41,10 +41,10 @@ self-contained commit.
        token counts and hashes loaded from the filesystem. Exit in error if you find the module names loaded from the 
        filesystem don't match the modules persisted in the `.vyb` directory. 
 
-9.  [ ] Tidy up the code and remove any unnecessary logic related to this task list. 
+9.  [x] Tidy up the code and remove any unnecessary logic related to this task list. 
         Move all the `Metadata` and `Module` parsing logic from the `cmd/template` module back into the `workspace/metadata` module. Unexport everything that can be safely unexported, and remove every function that is no longer used.
 
-10. [ ] Ensure that when the `target_dir` is the same as the `project_root` all files directly located in the root 
+10. [x] Ensure that when the `target_dir` is the same as the `project_root` all files directly located in the root 
 module are included in the request. As of now, this is not the case. The only way as of now to include the files from 
 the root module in the request is with the `--all` flag, but that also includes files from sub-modules of the root 
 module, which is inefficient.

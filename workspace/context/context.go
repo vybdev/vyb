@@ -1,9 +1,10 @@
 package context
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
+    "fmt"
+    "os"
+    "path/filepath"
+    "strings"
 )
 
 // ExecutionContext captures the three key path concepts used by vyb
@@ -27,9 +28,9 @@ import (
 // TODO(vyb): Add convenience helpers (e.g. Rel(path)) when required by
 // later tasks.
 type ExecutionContext struct {
-	ProjectRoot string
-	WorkingDir  string
-	TargetDir   string
+    ProjectRoot string
+    WorkingDir  string
+    TargetDir   string
 }
 
 // NewExecutionContext validates and returns an ExecutionContext.
@@ -37,68 +38,68 @@ type ExecutionContext struct {
 // Parameters must be *absolute* paths. If targetFile is nil it is treated
 // as if no target was provided.
 func NewExecutionContext(projectRoot, workingDir string, targetFile *string) (*ExecutionContext, error) {
-	// Sanity-check that we received absolute paths.
-	if !filepath.IsAbs(projectRoot) || !filepath.IsAbs(workingDir) {
-		return nil, fmt.Errorf("projectRoot and workingDir must be absolute paths")
-	}
-	var targetAbs string
-	if targetFile != nil {
-		if !filepath.IsAbs(*targetFile) {
-			return nil, fmt.Errorf("targetFile must be an absolute path when provided")
-		}
-		targetAbs = filepath.Clean(*targetFile)
-	}
+    // Sanity-check that we received absolute paths.
+    if !filepath.IsAbs(projectRoot) || !filepath.IsAbs(workingDir) {
+        return nil, fmt.Errorf("projectRoot and workingDir must be absolute paths")
+    }
+    var targetAbs string
+    if targetFile != nil {
+        if !filepath.IsAbs(*targetFile) {
+            return nil, fmt.Errorf("targetFile must be an absolute path when provided")
+        }
+        targetAbs = filepath.Clean(*targetFile)
+    }
 
-	root := filepath.Clean(projectRoot)
-	work := filepath.Clean(workingDir)
+    root := filepath.Clean(projectRoot)
+    work := filepath.Clean(workingDir)
 
-	// Ensure .vyb exists inside projectRoot.
-	if fi, err := os.Stat(filepath.Join(root, ".vyb")); err != nil || !fi.IsDir() {
-		return nil, fmt.Errorf("%s is not a valid project root – missing .vyb directory", root)
-	}
+    // Ensure .vyb exists inside projectRoot.
+    if fi, err := os.Stat(filepath.Join(root, ".vyb")); err != nil || !fi.IsDir() {
+        return nil, fmt.Errorf("%s is not a valid project root – missing .vyb directory", root)
+    }
 
-	// workingDir must be under projectRoot.
-	if !isDescendant(root, work) {
-		return nil, fmt.Errorf("workingDir %s is not within projectRoot %s", work, root)
-	}
+    // workingDir must be under projectRoot.
+    if !isDescendant(root, work) {
+        return nil, fmt.Errorf("workingDir %s is not within projectRoot %s", work, root)
+    }
 
-	// Derive/validate targetDir when a target file is provided.
-	var targetDir string
-	if targetFile != nil {
-		fi, err := os.Stat(targetAbs)
-		if err != nil {
-			return nil, fmt.Errorf("target file %s does not exist: %w", targetAbs, err)
-		}
-		if fi.IsDir() {
-			return nil, fmt.Errorf("target %s is a directory, expected a file", targetAbs)
-		}
+    // Derive/validate targetDir when a target file is provided.
+    var targetDir string
+    if targetFile != nil {
+        fi, err := os.Stat(targetAbs)
+        if err != nil {
+            return nil, fmt.Errorf("target file %s does not exist: %w", targetAbs, err)
+        }
+        if fi.IsDir() {
+            return nil, fmt.Errorf("target %s is a directory, expected a file", targetAbs)
+        }
 
-		if !isDescendant(work, targetAbs) {
-			return nil, fmt.Errorf("target file %s is outside workingDir %s", targetAbs, work)
-		}
+        if !isDescendant(work, targetAbs) {
+            return nil, fmt.Errorf("target file %s is outside workingDir %s", targetAbs, work)
+        }
 
-		targetDir = filepath.Dir(targetAbs)
-	} else {
-		targetDir = work
-	}
+        targetDir = filepath.Dir(targetAbs)
+    } else {
+        targetDir = work
+    }
 
-	return &ExecutionContext{
-		ProjectRoot: root,
-		WorkingDir:  work,
-		TargetDir:   filepath.Clean(targetDir),
-	}, nil
+    return &ExecutionContext{
+        ProjectRoot: root,
+        WorkingDir:  work,
+        TargetDir:   filepath.Clean(targetDir),
+    }, nil
 }
 
 // isDescendant returns true when child == parent or child is somewhere
 // below parent in the directory hierarchy.
 func isDescendant(parent, child string) bool {
-	rel, err := filepath.Rel(parent, child)
-	if err != nil {
-		return false
-	}
-	return rel == "." || !startsWithDotDot(rel)
+    rel, err := filepath.Rel(parent, child)
+    if err != nil {
+        return false
+    }
+    return rel == "." || !startsWithDotDot(rel)
 }
 
 func startsWithDotDot(rel string) bool {
-	return rel == ".." || filepath.HasPrefix(rel, ".."+string(os.PathSeparator))
+    return rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator))
 }
