@@ -2,8 +2,10 @@ package selector
 
 import (
 	"fmt"
+	"github.com/dangazineu/vyb/workspace/context"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"path/filepath"
 	"testing"
 	"testing/fstest"
 )
@@ -15,7 +17,7 @@ func TestSelect(t *testing.T) {
 		"base/dir1/ignored.txt":         {Data: []byte("ignored content")},
 		"base/dir1/file1.txt":           {Data: []byte("content1")},
 		"base/dir1/subdir1/.gitignore":  {Data: []byte("# no ignore here\n")},
-		"base/dir1/subdir1/ignored.txt": {Data: []byte("ignored also content as it's inherited from parent\n")},
+		"base/dir1/subdir1/ignored.txt": {Data: []byte("ignored also as it's inherited from parent\n")},
 		"base/dir1/subdir1/file2.txt":   {Data: []byte("content2")},
 		"base/dir1/subdir2/.gitignore":  {Data: []byte("*\n")},
 		"base/dir1/subdir2/file3.txt":   {Data: []byte("this file should never be included\n")},
@@ -45,6 +47,16 @@ func TestSelect(t *testing.T) {
 			},
 		},
 		{
+			baseDir:    "base/dir1",
+			target:     target("base/dir1/file1.txt"),
+			exclusions: []string{".gitignore", "file2.txt"},
+			inclusions: []string{"*"},
+			want: []string{
+				"base/dir1/file1.txt",
+				"base/dir1/subdir3/file4.txt",
+			},
+		},
+		{
 			baseDir:    "base/dir1/subdir1",
 			exclusions: []string{".gitignore"},
 			inclusions: []string{"*"},
@@ -67,7 +79,14 @@ func TestSelect(t *testing.T) {
 
 	for i, tc := range tests {
 		t.Run(fmt.Sprintf("TestSelect[%d]", i), func(t *testing.T) {
-			got, err := Select(fsys, tc.baseDir, tc.target, tc.exclusions, tc.inclusions)
+			ec := &context.ExecutionContext{ProjectRoot: ".", WorkingDir: tc.baseDir, TargetDir: func() string {
+				if tc.target != nil {
+					return filepath.Dir(*tc.target)
+				}
+				return tc.baseDir
+			}()}
+
+			got, err := Select(fsys, ec, tc.exclusions, tc.inclusions)
 			if err != nil {
 				t.Fatalf("Got an error: %v", err)
 			}

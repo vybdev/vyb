@@ -39,7 +39,7 @@ self-contained commit.
     - Ensure CLI commands fail fast when `target_file` is outside
       `working_dir`.
 
-3. [ ] 📁 **Update `selector.Select` signature**
+3. [x] 📁 **Update `selector.Select` signature**
     - Accept `ExecutionContext` instead of loose params.
     - Implement inclusion logic: *all files under `target_dir`*.
     - Keep exclusion / inclusion pattern processing unchanged.

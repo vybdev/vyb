@@ -149,7 +149,7 @@ func execute(cmd *cobra.Command, args []string, def *Definition) error {
 		}
 	}
 
-	files, err := selector.Select(rootFS, relWorkDir, relTarget, append(systemExclusionPatterns, def.ArgExclusionPatterns...), def.ArgInclusionPatterns)
+	files, err := selector.Select(rootFS, ec, append(systemExclusionPatterns, def.ArgExclusionPatterns...), def.ArgInclusionPatterns)
 	if err != nil {
 		return err
 	}

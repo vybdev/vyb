@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
+	"github.com/dangazineu/vyb/workspace/context"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -168,7 +169,12 @@ func Create(projectRoot string) error {
 // buildMetadata builds a metadata representation for the files available in
 // the given filesystem
 func buildMetadata(fsys fs.FS) (*Metadata, error) {
-	selected, err := selector.Select(fsys, "", nil, systemExclusionPatterns, []string{"*"})
+	// Build a minimal execution context anchored at workspace root so selector
+	// includes *all* files. We bypass constructor to avoid filesystem checks
+	// (unit-tests use fstest.MapFS).
+	ec := &context.ExecutionContext{ProjectRoot: ".", WorkingDir: ".", TargetDir: "."}
+
+	selected, err := selector.Select(fsys, ec, systemExclusionPatterns, []string{"*"})
 	if err != nil {
 		return nil, fmt.Errorf("failed during file selection: %w", err)
 	}
