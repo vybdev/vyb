@@ -39,7 +39,12 @@ self-contained commit.
     - Add cases verifying that proposed modifications outside
       `working_dir` are rejected.
 
-8. [ ] 📚 **Update documentation**
+8. [ ] Ensure that when the `target_dir` is the same as the `project_root` all files directly located in the root 
+module are included in the request. As of now, this is not the case. The only way as of now to include the files from 
+the root module in the request is with the `--all` flag, but that also includes files from sub-modules of the root 
+module, which is inefficient.
+
+9. [ ] 📚 **Update documentation**
     - Amend `README.md` and command help to explain the three path
       concepts and new safety guarantees.
 
