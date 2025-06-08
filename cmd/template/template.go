@@ -9,6 +9,7 @@ import (
 	"github.com/cbroglie/mustache"
 	"github.com/dangazineu/vyb/llm/openai"
 	"github.com/dangazineu/vyb/llm/payload"
+	"github.com/dangazineu/vyb/workspace/context"
 	"github.com/dangazineu/vyb/workspace/matcher"
 	"github.com/dangazineu/vyb/workspace/project"
 	"github.com/dangazineu/vyb/workspace/selector"
@@ -76,49 +77,41 @@ func isPathUnderDir(workDir, relPath string) bool {
 	return strings.HasPrefix(cleanPath, prefix)
 }
 
-// prepareExecutionContext extracts all the logic needed to prepare the file selection context.
-func prepareExecutionContext(target *string) (absRoot string, relWorkDir string, relTarget *string, err error) {
+// prepareExecutionContext builds and validates an ExecutionContext based on
+// the current working directory and an optional *target* argument.
+func prepareExecutionContext(target *string) (*context.ExecutionContext, error) {
 	absWorkingDir, err := filepath.Abs(".")
 	if err != nil {
-		return "", "", nil, fmt.Errorf("failed to determine absolute path of working directory: %w", err)
+		return nil, fmt.Errorf("failed to determine absolute working dir: %w", err)
 	}
+
+	// Locate project root using existing helper.
 	distToRoot, err := project.FindDistanceToRoot(absWorkingDir)
 	if err != nil {
-		return "", "", nil, fmt.Errorf("unable to determine project distToRoot: %w", err)
+		return nil, fmt.Errorf("unable to determine project root: %w", err)
 	}
 
-	absRoot, err = filepath.Abs(distToRoot)
+	absRoot, err := filepath.Abs(distToRoot)
 	if err != nil {
-		return "", "", nil, fmt.Errorf("failed to determine absolute path of project distToRoot %s: %w", distToRoot, err)
+		return nil, fmt.Errorf("failed to determine absolute project root: %w", err)
 	}
 
-	relWorkDir, err = filepath.Rel(absRoot, absWorkingDir)
-	if err != nil {
-		return "", "", nil, fmt.Errorf("failed to determine relative path: %w", err)
-	}
-
+	// Resolve absolute target (if any).
+	var absTarget *string
 	if target != nil {
-		absTarget, err := filepath.Abs(*target)
+		at, err := filepath.Abs(*target)
 		if err != nil {
-			return "", "", nil, fmt.Errorf("failed to determine absolute path of target %s: %w", *target, err)
+			return nil, fmt.Errorf("failed to resolve target %s: %w", *target, err)
 		}
-
-		rel, err := filepath.Rel(absRoot, absTarget)
-		if err != nil {
-			return "", "", nil, fmt.Errorf("failed to determine relative path: %w", err)
-		}
-
-		if rel == "" || strings.HasPrefix(rel, "..") {
-			return "", "", nil, fmt.Errorf("the target file %s is outside the project distToRoot %s", absTarget, absRoot)
-		}
-
-		info, err := os.Stat(absTarget)
-		if err != nil || info.IsDir() {
-			return "", "", nil, fmt.Errorf("the target %s is not a valid file", absTarget)
-		}
-		target = &rel
+		absTarget = &at
 	}
-	return absRoot, relWorkDir, target, nil
+
+	// Let ExecutionContext enforce invariants.
+	ec, err := context.NewExecutionContext(absRoot, absWorkingDir, absTarget)
+	if err != nil {
+		return nil, err
+	}
+	return ec, nil
 }
 
 func execute(cmd *cobra.Command, args []string, def *Definition) error {
@@ -131,9 +124,21 @@ func execute(cmd *cobra.Command, args []string, def *Definition) error {
 		target = &args[0]
 	}
 
-	absRoot, relWorkDir, relTarget, err := prepareExecutionContext(target)
+	ec, err := prepareExecutionContext(target)
 	if err != nil {
 		return err
+	}
+
+	absRoot := ec.ProjectRoot
+	// workingDir relative to project root ("." if identical).
+	relWorkDir, _ := filepath.Rel(absRoot, ec.WorkingDir)
+
+	// relTarget is the *file* provided by the user (if any), relative to root.
+	var relTarget *string
+	if target != nil {
+		absTarget, _ := filepath.Abs(*target)
+		rt, _ := filepath.Rel(absRoot, absTarget)
+		relTarget = &rt
 	}
 
 	rootFS := os.DirFS(absRoot)

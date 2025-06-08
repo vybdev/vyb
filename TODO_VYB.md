@@ -34,7 +34,7 @@ self-contained commit.
     - Place the new type in `workspace/context` (new package) so it can
       be reused by selector, template and tests.
 
-2. [ ] 🧹 **Refactor `cmd/template.prepareExecutionContext`**
+2. [x] 🧹 **Refactor `cmd/template.prepareExecutionContext`**
     - Replace current tuple return with the new `ExecutionContext`.
     - Ensure CLI commands fail fast when `target_file` is outside
       `working_dir`.
