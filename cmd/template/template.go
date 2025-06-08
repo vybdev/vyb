@@ -139,7 +139,8 @@ func execute(cmd *cobra.Command, args []string, def *Definition) error {
 		}
 	}
 
-	userMsg, err := payload.BuildUserMessage(rootFS, files)
+	meta, _ := project.LoadMetadata(absRoot)
+	userMsg, err := buildExtendedUserMessage(rootFS, meta, ec, files)
 	if err != nil {
 		return err
 	}
