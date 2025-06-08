@@ -27,7 +27,7 @@ behaviour specified above.  Each bullet should result in a single,
 self-contained commit.
 
 1. [ ] 🔧 **Introduce `ExecutionContext` struct**
-    - Fields: `ProjectRoot`, `WorkingDir`, `TargetDir` (all *relative*
+    - Fields: `ProjectRoot`, `WorkingDir`, `TargetDir` (all *absolute*
       paths).
     - Add helper constructor that validates the invariants described in
       *What You Should Do*.
@@ -72,6 +72,6 @@ self-contained commit.
     - Run `go test ./...` and ensure full pass.
 
 ## How You Should Do it
-- One by one, implement each of the tasks listed in the "TODO List of this file";
+- One by one, implement each of the tasks listed in the "TODO List" of this file. Each execution should complete an entire task in that list, and mark it as completed, by updating this file and replacing "[ ]" with "[x]";
 - For every change you make, include updated tests and documentation. If you decide not to change tests or documentation as part of a given TODO, include a justification in the `description` of the `workspace_change_proposal`;
 - ALWAYS return the full content of any file you change. The content you return will be used to *replace* the content of the file. If you send back just a partial delta, the file will be broken.
