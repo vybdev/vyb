@@ -19,6 +19,7 @@ File inclusions are based on those concepts.
   -  the `Internal Context` of every module between `working_dir` and `target_dir`;
   - the `Public Context` or every topmost module under `working_dir` that is not a parent of `target_dir`;
 - Only files within the module that holds the `target_dir` should be included, if that module has sub-modules, the `Public Context` of the topmost sub-modules will also be included in the request;
+- If a --all flag is provided, all files that pass inclusion/exclusion rules under the `target_dir` and any of its sub-modules are included in the request; 
 
 ## TODO List
 
@@ -50,23 +51,28 @@ self-contained commit.
       check against `ExecutionContext.WorkingDir`.
     - Remove the standalone `isPathUnderDir` helper once migrated.
 
-5. [ ] 🧩 **Module context wiring**
+5. [x] 🧩 **Module context wiring**
     - Enhance `openai.GetWorkspaceChangeProposals` (or the functions it calls)
       to compose module contexts according to the bullets under
       *`openai.GetWorkspaceChangeProposals` should leverage*.
     - Add exhaustive unit tests using in-memory module trees.
 
-6. [ ] 🛡️ **Strengthen matcher & selector tests**
+6. [ ] Introduce `--all` flag 
+   - In the templated command execution (`cmd/template/template.go`), if `--all` is set, 
+     include all files under the `target_dir` and any of its sub-modules.
+   - Adjust tests accordingly.
+
+7. [ ] 🛡️ **Strengthen matcher & selector tests**
     - Add cases ensuring that files outside `target_dir` are never
       included.
     - Add cases verifying that proposed modifications outside
       `working_dir` are rejected.
 
-7. [ ] 📚 **Update documentation**
+8. [ ] 📚 **Update documentation**
     - Amend `README.md` and command help to explain the three path
       concepts and new safety guarantees.
 
-8. [ ] ✅ **Cleanup**
+9. [ ] ✅ **Cleanup**
     - Remove obsolete helpers and dead code (e.g. the old
       `isPathUnderDir`).
     - Run `go test ./...` and ensure full pass.
