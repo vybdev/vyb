@@ -113,7 +113,7 @@ one task at a time. Mark with an [x] the task you have finished.
 - [x] Break down the work into atomic changes. Each step must leave the
       repository in a compiling, tested and documented state.
 
-- [ ] `feat(llm): add ModelFamily & ModelSize enums`
+- [x] `feat(llm): add ModelFamily & ModelSize enums`
    * create `llm/types.go` with the two string types and constants.
    * add unit test validating `String()` behaviour (compile-time safety).
    * docs: update `llm/README.md` enumerations.
@@ -123,50 +123,61 @@ one task at a time. Mark with an [x] the task you have finished.
      YAML or returns default).
    * unit tests with in-memory `fstest.MapFS`.
    * docs: add Configuration section to root README.
+   * mark this task as completed
 
 - [ ] `feat(cmd/init): prompt for provider & write config.yaml`
    * extend `cmd/init.go` to ask user via `survey` (fallback to openai).
    * write default YAML when non-interactive (tests use env var to skip).
    * update unit tests; adjust workflow to ensure binary still builds.
+   * mark this task as completed
 
 - [ ] `refactor(llm): create provider interface & dispatcher`
    * add private `provider` interface mirroring façade helpers.
    * implement `resolveProvider()` using `config.Load()`.
    * move existing openai helpers to satisfy the interface.
    * compile-time stubs for future providers.
+   * mark this task as completed
 
 - [ ] `refactor(llm/openai): map family/size to concrete model`
    * implement `mapModel` as specified.
    * update exported helpers (`GetWorkspaceChangeProposals`, etc.) to
      accept family & size and call mapping.
    * adapt unit tests.
+   * mark this task as completed
 
 - [ ] `refactor(cmd/template): drop raw model field`
    * remove `Model` field from Definition struct.
    * adjust loading logic & YAML templates to new nested
      `model: {family:, size:}` layout.
    * update embedded templates accordingly and add regression tests.
+   * mark this task as completed
 
 - [ ] `feat(llm): façade helpers delegating based on config`
    * add `llm.GetWorkspaceChangeProposals` that calls provider-specific
      implementation after resolving provider & mapping.
    * update all call-sites (mainly cmd/template) to use new llm package.
    * ensure backward compatibility test passes.
+   * mark this task as completed
 
 - [ ] `chore(openai): remove direct usages from business code`
    * search & replace openai.* calls outside llm/openai → switch to llm
      package.
    * ensure no import cycles.
+   * mark this task as completed
 
 - [ ] `test: integration – provider dispatch`
    * add table-driven test that mocks `config.Load()` and checks correct
      provider is picked (uses testdouble implementing provider iface).
+   * mark this task as completed
 
 - [ ] `docs(templates): update README & example snippets`
     * reflect new `model:` structure & provider logic.
+    * mark this task as completed
 
 - [ ] `ci: run go vet & tests on new packages`
     * update GitHub action matrix if necessary.
+    * mark this task as completed
 
 - [ ] `cleanup: remove obsolete TODOs & dead code`
     * delete Model string fields, old helpers, and outdated comments.
+    * mark this task as completed
