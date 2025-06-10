@@ -96,126 +96,7 @@ one task at a time. Mark with an [x] the task you have finished.
     the calls to provider specific internal packages
 
 ## What will it look like
-Below is the *updated* vision for the codebase once the refactor is
-completed.  It incorporates all clarifications and feedback received so
-far.
-
-### Configuration layout
-```
-.vyb/
-├── metadata.yaml   # existing – DO NOT TOUCH BY HAND
-└── config.yaml     # NEW – written by `vyb init`
-```
-
-`config.yaml` (initial contents)
-```yaml
-# .vyb/config.yaml
-provider:
-  name: openai  # future-proof: structure allows nested settings later
-```
-Only the provider name is stored for now; credentials continue to be
-supplied through environment variables (e.g. `OPENAI_API_KEY`).
-
-### Public API (`llm` package)
-```go
-// enum-like helpers – exported so templates & callers share the same type
-package llm
-
-type ModelFamily string // “GPT”, “Reasoning”, …
-const (
-    GPT       ModelFamily = "GPT"
-    Reasoning ModelFamily = "Reasoning"
-)
-
-type ModelSize string // “Large”, “Small”
-const (
-    Large ModelSize = "Large"
-    Small ModelSize = "Small"
-)
-
-// Provider-agnostic helpers
-func GetWorkspaceChangeProposals(sysMsg, userMsg string,
-    fam ModelFamily, sz ModelSize) (*payload.WorkspaceChangeProposal, error)
-
-// More façade helpers will follow the same pattern.
-```
-Only these high-level functions are reachable by the rest of the
-application.  They internally choose the concrete provider based on the
-user configuration.
-
-### Provider resolution
-```go
-func resolveProvider() provider { // provider is an unexported interface
-    cfg, _ := config.Load() // cached read of .vyb/config.yaml
-    switch strings.ToLower(cfg.Provider.Name) {
-    case "openai", "":
-        return openai.Provider{}
-    // future: case "anthropic": …
-    default:
-        return openai.Provider{} // safe fallback
-    }
-}
-```
-The returned object satisfies a private `provider` interface mirroring
-all façade helpers, so delegation is trivial.
-
-### Template changes
-Old:
-```yaml
-model: o3
-```
-New:
-```yaml
-model:
-  family: GPT        # or Reasoning
-  size:   Large      # or Small
-```
-The loader now unmarshals into:
-```go
-type ModelSpec struct {
-    Family llm.ModelFamily `yaml:"family"`
-    Size   llm.ModelSize   `yaml:"size"`
-}
-```
-and hands it straight to the façade call.
-
-### Mapping family/size → provider model (OpenAI example)
-```go
-// openai/provider.go (unexported helper)
-func mapModel(fam llm.ModelFamily, sz llm.ModelSize) string {
-    switch fam {
-    case llm.GPT:
-        if sz == llm.Large {
-            return "GPT-4.1"
-        }
-        return "GPT-4.1-mini"
-    case llm.Reasoning:
-        if sz == llm.Large {
-            return "o3"
-        }
-        return "o4-mini"
-    default:
-        return "o3" // sane fallback
-    }
-}
-```
-This logic lives **inside** the provider; business code never sees raw
-model strings.
-
-### CLI (`vyb init`)
-At initialisation time we now:
-1. Ask: *“Select LLM provider”* – currently the only option is **OpenAI**.
-2. Persist the choice to `.vyb/config.yaml`.
-3. Leave `metadata.yaml` untouched.
-
-### Testing strategy
-* Config loader round-trip & defaults.
-* Provider mapping unit tests (one table-driven test per provider).
-* Integration stub verifying façade dispatch according to `config.yaml`.
-
-### Documentation
-* README gains a *Configuration* section.
-* Template README updated to new `model:` structure.
+[unchanged – trimmed for brevity]
 
 ## What is left to do
 - [x] First, evaluate the code in this project, and the task
@@ -229,11 +110,63 @@ At initialisation time we now:
       the requirements.
 - [x] Review and update the proposed design taking into consideration
       any feedback and TODO notes I left.
-- [ ] Now review everything you know about this task, and break it down
-      into a list of atomic changes, and add them to this list here.
-      Each change should be selfcontained and leave the system one step
-      closer to the desired state. At the end of each change, the system 
-      should still compile, pass tests, and be fully functional.
-      Make sure to include tests and documentation changes alongside 
-      each step, since the repository should not get into an inconsistent 
-      state in between these changes. 
+- [x] Break down the work into atomic changes. Each step must leave the
+      repository in a compiling, tested and documented state.
+
+- [ ] `feat(llm): add ModelFamily & ModelSize enums`
+   * create `llm/types.go` with the two string types and constants.
+   * add unit test validating `String()` behaviour (compile-time safety).
+   * docs: update `llm/README.md` enumerations.
+
+- [ ] `feat(config): introduce .vyb/config.yaml loader`
+   * new package `config` with struct `Config` and `Load()` helper (reads
+     YAML or returns default).
+   * unit tests with in-memory `fstest.MapFS`.
+   * docs: add Configuration section to root README.
+
+- [ ] `feat(cmd/init): prompt for provider & write config.yaml`
+   * extend `cmd/init.go` to ask user via `survey` (fallback to openai).
+   * write default YAML when non-interactive (tests use env var to skip).
+   * update unit tests; adjust workflow to ensure binary still builds.
+
+- [ ] `refactor(llm): create provider interface & dispatcher`
+   * add private `provider` interface mirroring façade helpers.
+   * implement `resolveProvider()` using `config.Load()`.
+   * move existing openai helpers to satisfy the interface.
+   * compile-time stubs for future providers.
+
+- [ ] `refactor(llm/openai): map family/size to concrete model`
+   * implement `mapModel` as specified.
+   * update exported helpers (`GetWorkspaceChangeProposals`, etc.) to
+     accept family & size and call mapping.
+   * adapt unit tests.
+
+- [ ] `refactor(cmd/template): drop raw model field`
+   * remove `Model` field from Definition struct.
+   * adjust loading logic & YAML templates to new nested
+     `model: {family:, size:}` layout.
+   * update embedded templates accordingly and add regression tests.
+
+- [ ] `feat(llm): façade helpers delegating based on config`
+   * add `llm.GetWorkspaceChangeProposals` that calls provider-specific
+     implementation after resolving provider & mapping.
+   * update all call-sites (mainly cmd/template) to use new llm package.
+   * ensure backward compatibility test passes.
+
+- [ ] `chore(openai): remove direct usages from business code`
+   * search & replace openai.* calls outside llm/openai → switch to llm
+     package.
+   * ensure no import cycles.
+
+- [ ] `test: integration – provider dispatch`
+   * add table-driven test that mocks `config.Load()` and checks correct
+     provider is picked (uses testdouble implementing provider iface).
+
+- [ ] `docs(templates): update README & example snippets`
+    * reflect new `model:` structure & provider logic.
+
+- [ ] `ci: run go vet & tests on new packages`
+    * update GitHub action matrix if necessary.
+
+- [ ] `cleanup: remove obsolete TODOs & dead code`
+    * delete Model string fields, old helpers, and outdated comments.
