@@ -15,14 +15,60 @@ You are expected to accomplish no more and no less than one task at a time.
 Mark with an [x] the task you have finished.
 
 ## What you need to know
+- Question: Where exactly should `.vyb/config.yaml` live relative to the
+  project root?  Inside the existing `.vyb/` directory or alongside it?
+  - Answer: the `config.yaml` will live inside the `.vyb/` directory that is created as part of the `vyb init` execution.
 
-- Question: Your question should be formatted like this. 
-  - Answer: And my answer will be formatted like this.
+- Question: What *schema* is expected for this file?  At minimum it needs
+  the provider name (`openai`, `anthropic`, *etc.*) plus the mapping from
+  (family, size) → provider-specific model string; is anything else
+  required (e.g. API keys, temperature defaults, retries)?
+  - Answer: Model provider should be a field within the config data structure (which you will create as well). The value of model provider should be a data structure that only has the model provider's name, for now. We may make this more robust in the future. Do not include family and size mapping in the config, this should be in the code of the model specific package.
+
+- Question: Which "model families" and "sizes" must be supported in the
+  first iteration?  The task mentions *GPT / reasoning* and *Large / Small*;
+  please confirm the full matrix we should encode.
+  - Answer: This logic should live in the provider package, since the mapping will change from one to another.
+    - family(GPT) + size(L) -> "GPT-4.1"
+    - family(GPT) + size(S) -> "GPT-4.1-mini"
+    - family(reasoning) + size(L) -> "o3"
+    - family(reasoning) + size(L) -> "o4-mini" 
+
+- Question: The current code uses explicit model strings (`o3`, `o4-mini`)
+  in several places.  Should those be removed entirely or only hidden
+  behind a resolver while keeping the literals?
+  - Answer: functions within the openai module that already have models hardcoded can continue to do so. The functions that receive the model as a parameter should now receive model family and size instead. 
+
+- Question: Is backwards compatibility with existing templates important
+  (i.e. should `model:` in `.vyb` template files still work)?
+  - Answer: backward compatibility is not important, but you should convert the templates you find to match the new structure
+
+- Question: Which public surface should the refactored `llm` package
+  expose?  A single `Call` function, higher-level helpers similar to the
+  current `GetWorkspaceChangeProposals`, or both?
+  - Answer:Functions like `GetWorkspaceChangeProposals`, which encapsulate business logic
+
+- Question: Do we need a mechanism to override the provider at runtime
+  via an environment variable/flag, or is the YAML file authoritative?
+  - Answer:Design the code in a way that this can be added in the future. But for now there is no need to provide additional ways of loading the provider.
+
+- Question: Should `vyb init` *prompt* the user for the desired provider
+  or silently create the default (`openai`) config?
+  - Answer: Yes, it should provide a list of supported providers for the user to select. For now the list will only have openai, but we will add to it later.
+
+- Question: Apart from OpenAI, are there already providers on the roadmap
+  that we should stub out (e.g. `anthropic`, `azure-openai`)?
+  - Answer: Not yet
+
+- Question: Any preference for the dependency injection approach?
+  (interface in `llm` + provider registration vs. simple `switch` on
+  config).
+  - Answer: it can be a simple switch in the `llm` package, forwarding the calls to provider specific internal packages
 
 ## What will it look like
 This section will contain your proposed solution for the problem that you were given. 
 
 ## What is left to do
-- [ ] First, evaluate the code in this project, and the task description in "What you will do". Then ask as many questions as you need to have full certainty about what is being asked. Ask your questions under "What you need to know" section.
+- [x] First, evaluate the code in this project, and the task description in "What you will do". Then ask as many questions as you need to have full certainty about what is being asked. Ask your questions under "What you need to know" section.
 - [ ] Once your questions have been answered, propose a design for your solution. Replace the contents under "What will it look like" with the proposed changes to the system. This is not a list of tasks, it is a vision for the final state of the system to satisfy all the requirements.
 - [ ] Now review everything you know about this task, and break it down into a list of atomic changes, and add them to this list here. Each change should be selfcontained, and leave the system one step closer to the desired state. Make sure to include tests and documentation changes alongside each step, since the repository should not get into an inconsistent state in between these changes. 
