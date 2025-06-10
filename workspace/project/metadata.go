@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
+	"github.com/vybdev/vyb/config"
 	"github.com/vybdev/vyb/workspace/context"
 	"io/fs"
 	"os"
@@ -124,10 +125,17 @@ var systemExclusionPatterns = []string{
 }
 
 // Create creates the project metadata configuration at the project root.
-// Returns an error if the metadata cannot be created, or if it already exists.
-// If a ".vyb" folder exists in the root directory or any of its subdirectories,
-// this function returns an error.
-func Create(projectRoot string) error {
+// The function now also persists .vyb/config.yaml with the chosen LLM
+// provider so callers do not have to duplicate that logic.
+//
+// Returns an error if the metadata cannot be created, or if it already
+// exists.  If a ".vyb" folder exists in the root directory or any of its
+// subdirectories, this function returns an error.
+func Create(projectRoot string, provider string) error {
+
+	if provider == "" {
+		provider = config.Default().Provider
+	}
 
 	rootFS := os.DirFS(projectRoot)
 	existingFolders, err := findAllConfigWithinRoot(rootFS)
@@ -143,6 +151,26 @@ func Create(projectRoot string) error {
 		return fmt.Errorf("failed to create .vyb directory: %w", err)
 	}
 
+	// ------------------------------------------------------------------
+	// 1. Persist configuration – this must happen before metadata so that
+	//    later code relying on config.Load() works even during init.
+	// ------------------------------------------------------------------
+	cfg := &config.Config{Provider: provider}
+	cfgBytes, err := yaml.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config.yaml: %w", err)
+	}
+	if len(cfgBytes) == 0 || cfgBytes[len(cfgBytes)-1] != '\n' {
+		cfgBytes = append(cfgBytes, '\n')
+	}
+	cfgPath := filepath.Join(configDir, "config.yaml")
+	if err := os.WriteFile(cfgPath, cfgBytes, 0644); err != nil {
+		return fmt.Errorf("failed to write config.yaml: %w", err)
+	}
+
+	// ------------------------------------------------------------------
+	// 2. Build and annotate metadata as before.
+	// ------------------------------------------------------------------
 	metadata, err := buildMetadata(rootFS)
 	if err != nil {
 		return fmt.Errorf("failed to build metadata: %w", err)

@@ -125,11 +125,13 @@ one task at a time. Mark with an [x] the task you have finished.
    * docs: add Configuration section to root README.
    * mark this task as completed
 
-- [ ] `feat(cmd/init): prompt for provider & write config.yaml`
+- [x] `feat(cmd/init): prompt for provider & write config.yaml`
    * extend `cmd/init.go` to ask user via `survey` (fallback to openai).
    * write default YAML when non-interactive (tests use env var to skip).
    * update unit tests; adjust workflow to ensure binary still builds.
    * mark this task as completed
+
+- [x] refactor the init cmd so the list of providers comes from the llm package, the provider selection happens before project.Create is called. Move the logic to persist provider information into project.Create.
 
 - [ ] `refactor(llm): create provider interface & dispatcher`
    * add private `provider` interface mirroring façade helpers.
