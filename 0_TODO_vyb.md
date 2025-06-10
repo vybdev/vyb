@@ -143,7 +143,7 @@ one task at a time. Mark with an [x] the task you have finished.
 - [ ] `refactor(llm/openai): map family/size to concrete model`
    * implement `mapModel` as specified.
    * update exported helpers (`GetWorkspaceChangeProposals`, etc.) to
-     accept family & size and call mapping.
+     accept model spec and project config structs
    * adapt unit tests.
    * mark this task as completed
 
