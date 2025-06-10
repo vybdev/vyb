@@ -3,6 +3,7 @@ module github.com/vybdev/vyb
 go 1.24
 
 require (
+	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/cbroglie/mustache v1.2.0
 	github.com/google/go-cmp v0.7.0
 	github.com/spf13/cobra v1.6.1
@@ -53,6 +54,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.0.1 // indirect
 	github.com/jingyugao/rowserrcheck v0.0.0-20191204022205-72ab7603b68a // indirect
 	github.com/jirfag/go-printf-func-name v0.0.0-20191110105641-45db9963cdd3 // indirect
+	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kisielk/gotool v1.0.0 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.3 // indirect
 	github.com/kyoh86/exportloopref v0.1.4 // indirect
@@ -61,6 +63,7 @@ require (
 	github.com/matoous/godox v0.0.0-20190911065817-5d6d842e92eb // indirect
 	github.com/mattn/go-colorable v0.1.7 // indirect
 	github.com/mattn/go-isatty v0.0.12 // indirect
+	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.1.2 // indirect
 	github.com/nakabonne/nestif v0.3.0 // indirect
@@ -93,11 +96,11 @@ require (
 	github.com/ultraware/funlen v0.0.2 // indirect
 	github.com/ultraware/whitespace v0.0.4 // indirect
 	github.com/uudashr/gocognit v1.0.1 // indirect
-	golang.org/x/mod v0.3.0 // indirect
-	golang.org/x/sys v0.0.0-20200323222414-85ca7c5b95cd // indirect
-	golang.org/x/text v0.3.2 // indirect
-	golang.org/x/tools v0.0.0-20200702044944-0cc1aa72b347 // indirect
-	golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543 // indirect
+	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
+	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f // indirect
+	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
+	golang.org/x/text v0.4.0 // indirect
+	golang.org/x/tools v0.1.12 // indirect
 	gopkg.in/ini.v1 v1.51.0 // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 	honnef.co/go/tools v0.0.1-2020.1.4 // indirect

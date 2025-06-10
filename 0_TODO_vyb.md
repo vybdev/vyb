@@ -118,7 +118,7 @@ one task at a time. Mark with an [x] the task you have finished.
    * add unit test validating `String()` behaviour (compile-time safety).
    * docs: update `llm/README.md` enumerations.
 
-- [ ] `feat(config): introduce .vyb/config.yaml loader`
+- [x] `feat(config): introduce .vyb/config.yaml loader`
    * new package `config` with struct `Config` and `Load()` helper (reads
      YAML or returns default).
    * unit tests with in-memory `fstest.MapFS`.
