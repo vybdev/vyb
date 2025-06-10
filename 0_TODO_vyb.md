@@ -133,7 +133,7 @@ one task at a time. Mark with an [x] the task you have finished.
 
 - [x] refactor the init cmd so the list of providers comes from the llm package, the provider selection happens before project.Create is called. Move the logic to persist provider information into project.Create.
 
-- [ ] `refactor(llm): create provider interface & dispatcher`
+- [x] `refactor(llm): create provider interface & dispatcher`
    * add private `provider` interface mirroring façade helpers.
    * implement `resolveProvider()` using `config.Load()`.
    * move existing openai helpers to satisfy the interface.
