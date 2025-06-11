@@ -282,6 +282,25 @@ func callGemini(systemMessage, userMessage string, schema interface{}, model str
         return nil, fmt.Errorf("gemini: failed to read response body: %w", err)
     }
 
+    // ---------------------------------------------------------------------
+    // Persist request/response pair for debugging – same approach as OpenAI.
+    // ---------------------------------------------------------------------
+    logEntry := struct {
+        Request  json.RawMessage `json:"request"`
+        Response json.RawMessage `json:"response"`
+    }{
+        Request:  bodyBytes,
+        Response: respBytes,
+    }
+
+    if logBytes, err := json.MarshalIndent(logEntry, "", "  "); err == nil {
+        if f, err := os.CreateTemp("", "vyb-gemini-*.json"); err == nil {
+            if _, wErr := f.Write(logBytes); wErr == nil {
+                _ = f.Close()
+            }
+        }
+    }
+
     if resp.StatusCode != http.StatusOK {
         // Try to decode structured error first.
         var gErr geminiErrorResponse
