@@ -86,11 +86,11 @@ purpose during the design discussion.*
    `payload.WorkspaceChangeProposal`.
    • Unit test with `httptest.Server` asserting correct payload.
 
-- [ ] **Hook up `GetModuleContext` & `GetModuleExternalContexts`**  
+- [x] **Hook up `GetModuleContext` & `GetModuleExternalContexts`**  
    • Reuse helper for both additional schemas.  
    • Tests similar to step 5.
 
-- [ ] **Enable logging of request/response pairs**  
+- [x] **Enable logging of request/response pairs**  
    • Same convention as OpenAI (`vyb-gemini-*.json`).
 
 - [ ] **Replace dispatcher stubs**  
