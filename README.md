@@ -29,7 +29,7 @@ $ export OPENAI_API_KEY="sk-..." # or...
 $ export GEMINI_API_KEY="..."
 
 # install the latest directly from github
-$ go install github.com/vybdev/vyb
+$ go install github.com/vybdev/vyb@latest
 
 # make the binary discoverable
 # if #GOPATH is not set in your environment, it is usually under $HOME/go
