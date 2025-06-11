@@ -60,7 +60,7 @@ purpose during the design discussion.*
 - [x] Break the implementation into **atomic steps** and list them below. Each
       step must leave the repo in a compilable & tested state.
 
-- [ ] **Add Gemini model mapping tests**  
+- [x] **Add Gemini model mapping tests**  
    • `llm/dispatcher_test.go` – verify `mapGeminiModel` returns the correct
    identifiers for every `(family,size)` pair and errors on unknown size.
 
