@@ -70,13 +70,13 @@ purpose during the design discussion.*
    `GetModuleExternalContexts`).  
    • Compile-time build passes (methods return `ErrNotImplemented`).
 
-- [ ] **Implement request/response structs & endpoint constants**  
+- [x] **Implement request/response structs & endpoint constants**  
    • Define `message`, `request`, `generationConfig`, and `geminiResponse`
    types.
    • Include helper for marshalling schema into `generationConfig`.
    • No network call yet – unit tests focus on JSON construction.
 
-- [ ] **Wire HTTP call (non-streaming)**  
+- [x] **Wire HTTP call (non-streaming)**  
    • Implement `callGemini` using `net/http`, building the full URL with the
    `GEMINI_API_KEY` query param.  
    • Add basic error handling for non-200 responses.

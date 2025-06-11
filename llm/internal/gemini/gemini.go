@@ -7,8 +7,13 @@ package gemini
 // integrated and tested without performing real network calls.
 
 import (
+    "bytes"
     "encoding/json"
     "errors"
+    "fmt"
+    "io"
+    "net/http"
+    "os"
 )
 
 import "github.com/vybdev/vyb/config"
@@ -45,8 +50,8 @@ func GetModuleExternalContexts(_ string, _ string) (*payload.ModuleExternalConte
 // Provider-specific data structures & helpers (non-exported)
 // -----------------------------------------------------------------------------
 
-// baseEndpoint is the common prefix for every Gemini REST call.
-const baseEndpoint = "https://generativelanguage.googleapis.com/v1beta"
+// NOTE: baseEndpoint is a var (not const) to allow test overrides.
+var baseEndpoint = "https://generativelanguage.googleapis.com/v1beta"
 
 // generateContentTmpl is the relative path (fmt formatted) used to call
 // the "generateContent" method on a specific model, e.g.:
@@ -88,6 +93,28 @@ type geminiResponse struct {
     } `json:"candidates"`
 }
 
+// geminiErrorResponse captures error payloads returned by Gemini.
+// Example:
+// {
+//   "error": {
+//     "code": 400,
+//     "message": "...",
+//     "status": "INVALID_ARGUMENT"
+//   }
+// }
+
+type geminiErrorResponse struct {
+    Err struct {
+        Code    int    `json:"code"`
+        Message string `json:"message"`
+        Status  string `json:"status"`
+    } `json:"error"`
+}
+
+func (e geminiErrorResponse) Error() string {
+    return fmt.Sprintf("Gemini API error (%d %s): %s", e.Err.Code, e.Err.Status, e.Err.Message)
+}
+
 // buildRequest constructs the request body expected by the Gemini
 // generateContent endpoint given the system & user messages and the
 // JSON schema that should be enforced in the response.
@@ -120,4 +147,62 @@ func buildRequest(systemMessage, userMessage string, schema interface{}) ([]byte
     }
 
     return json.Marshal(payload)
+}
+
+// callGemini performs a synchronous REST call to the Gemini
+// generateContent endpoint and returns the decoded response.
+//
+// The helper validates required environment variables, handles non-200
+// responses and unmarshals the successful JSON body into geminiResponse.
+func callGemini(systemMessage, userMessage string, schema interface{}, model string) (*geminiResponse, error) {
+    apiKey := os.Getenv("GEMINI_API_KEY")
+    if apiKey == "" {
+        return nil, errors.New("GEMINI_API_KEY is not set")
+    }
+
+    if model == "" {
+        return nil, errors.New("gemini: model must not be empty")
+    }
+
+    // Build request body.
+    bodyBytes, err := buildRequest(systemMessage, userMessage, schema)
+    if err != nil {
+        return nil, err
+    }
+
+    // Compose endpoint URL.
+    url := fmt.Sprintf("%s"+generateContentTmpl, baseEndpoint, model, apiKey)
+
+    req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(bodyBytes))
+    if err != nil {
+        return nil, fmt.Errorf("gemini: failed to create request: %w", err)
+    }
+    req.Header.Set("Content-Type", "application/json")
+
+    resp, err := http.DefaultClient.Do(req)
+    if err != nil {
+        return nil, fmt.Errorf("gemini: request failed: %w", err)
+    }
+    defer resp.Body.Close()
+
+    respBytes, err := io.ReadAll(resp.Body)
+    if err != nil {
+        return nil, fmt.Errorf("gemini: failed to read response body: %w", err)
+    }
+
+    if resp.StatusCode != http.StatusOK {
+        // Try to decode structured error first.
+        var gErr geminiErrorResponse
+        if jsonErr := json.Unmarshal(respBytes, &gErr); jsonErr == nil && gErr.Err.Message != "" {
+            return nil, gErr
+        }
+        return nil, fmt.Errorf("gemini: http %d – %s", resp.StatusCode, string(respBytes))
+    }
+
+    var out geminiResponse
+    if err := json.Unmarshal(respBytes, &out); err != nil {
+        return nil, fmt.Errorf("gemini: failed to unmarshal response: %w", err)
+    }
+
+    return &out, nil
 }
