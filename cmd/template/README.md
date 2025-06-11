@@ -15,6 +15,7 @@ fields:
 | `requestExclusionPatterns`      | Files to never embed                      |
 | `modificationInclusionPatterns` | Files the LLM is allowed to touch         |
 | `modificationExclusionPatterns` | Guard-rails against accidental edits      |
+| `model` *(opt)*                 | Tuple `{family, size}` selecting the LLM  |
 
 At runtime the loader merges three sources (by precedence):
 
@@ -24,3 +25,18 @@ At runtime the loader merges three sources (by precedence):
 
 Templates use Mustache placeholders to inject dynamic data (e.g. the
 command-specific prompt gets embedded into a global *system* prompt).
+
+### `model` field
+
+Every template can optionally override the default model by specifying the
+following YAML fragment:
+
+```yaml
+model:
+  family: reasoning   # one of: gpt, reasoning
+  size:   small       # large or small
+```
+
+When absent the loader falls back to `{family: reasoning, size: large}`.
+The exact resolution to a concrete model string is handled by the active
+provider (see `.vyb/config.yaml`).
