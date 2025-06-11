@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/vybdev/vyb/llm/openai/internal/schema"
-	"github.com/vybdev/vyb/llm/payload"
+	"github.com/vybdev/vyb/config"
+	"github.com/vybdev/vyb/llm/internal/openai/internal/schema"
 	"io"
 	"net/http"
 	"os"
+
+	"github.com/vybdev/vyb/llm/payload"
 	"time"
 )
 
@@ -51,9 +53,39 @@ func (o openaiErrorResponse) Error() string {
 	return fmt.Sprintf("OpenAI API error: %s", o.OpenAIError.Message)
 }
 
-// GetModuleContext calls the LLM and returns a parsed ModuleSelfContainedContext value.
+// -----------------------------------------------------------------------------
+//
+//	Model resolver
+//
+// -----------------------------------------------------------------------------
+// mapModel converts a generic (family,size) pair into a concrete OpenAI model
+// string.  The mapping is local to this provider so business-level code never
+// depends on provider-specific identifiers.
+func mapModel(fam config.ModelFamily, sz config.ModelSize) (string, error) {
+	switch fam {
+	case config.ModelFamilyGPT:
+		switch sz {
+		case config.ModelSizeLarge:
+			return "GPT-4.1", nil
+		case config.ModelSizeSmall:
+			return "GPT-4.1-mini", nil
+		}
+	case config.ModelFamilyReasoning:
+		switch sz {
+		case config.ModelSizeLarge:
+			return "o3", nil
+		case config.ModelSizeSmall:
+			return "o4-mini", nil
+		}
+	}
+	return "", fmt.Errorf("openai: unsupported model mapping for family=%s size=%s", fam, sz)
+}
+
+// GetModuleContext calls the LLM and returns a parsed ModuleSelfContainedContext
+// value using the model derived from family/size.
 func GetModuleContext(systemMessage, userMessage string) (*payload.ModuleSelfContainedContext, error) {
-	openaiResp, err := callOpenAI(systemMessage, userMessage, schema.GetModuleContextSchema(), "o4-mini")
+	model := "o4-mini"
+	openaiResp, err := callOpenAI(systemMessage, userMessage, schema.GetModuleContextSchema(), model)
 	if err != nil {
 		var openAIErrResp openaiErrorResponse
 		if errors.As(err, &openAIErrResp) {
@@ -74,8 +106,11 @@ func GetModuleContext(systemMessage, userMessage string) (*payload.ModuleSelfCon
 
 // GetWorkspaceChangeProposals sends the given messages to the OpenAI API and
 // returns the structured workspace change proposal.
-func GetWorkspaceChangeProposals(systemMessage, userMessage string) (*payload.WorkspaceChangeProposal, error) {
-	model := "o3"
+func GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, systemMessage, userMessage string) (*payload.WorkspaceChangeProposal, error) {
+	model, err := mapModel(fam, sz)
+	if err != nil {
+		return nil, err
+	}
 
 	openaiResp, err := callOpenAI(systemMessage, userMessage, schema.GetWorkspaceChangeProposalSchema(), model)
 	if err != nil {

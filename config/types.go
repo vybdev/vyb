@@ -1,4 +1,4 @@
-package llm
+package config
 
 // ModelFamily represents the generic family of a language model.
 //
@@ -10,8 +10,9 @@ package llm
 // YAML/JSON marshaling and command-line flags.
 //
 // Example usage:
-//   var f ModelFamily = ModelFamilyGPT
-//   fmt.Println(f) // -> "gpt"
+//
+//	var f ModelFamily = ModelFamilyGPT
+//	fmt.Println(f) // -> "gpt"
 //
 // The zero value is an empty string and therefore invalid. Always
 // initialise the variable with one of the provided constants.
@@ -21,13 +22,13 @@ package llm
 type ModelFamily string
 
 const (
-    // ModelFamilyGPT groups together GPT-style chat models optimised for
-    // general purpose coding / conversation (e.g. GPT-4).
-    ModelFamilyGPT ModelFamily = "gpt"
+	// ModelFamilyGPT groups together GPT-style chat models optimised for
+	// general purpose coding / conversation (e.g. GPT-4).
+	ModelFamilyGPT ModelFamily = "gpt"
 
-    // ModelFamilyReasoning corresponds to models targeted at long
-    // reasoning or planning tasks.
-    ModelFamilyReasoning ModelFamily = "reasoning"
+	// ModelFamilyReasoning corresponds to models targeted at long
+	// reasoning or planning tasks.
+	ModelFamilyReasoning ModelFamily = "reasoning"
 )
 
 func (m ModelFamily) String() string { return string(m) }
@@ -38,12 +39,12 @@ func (m ModelFamily) String() string { return string(m) }
 type ModelSize string
 
 const (
-    // ModelSizeLarge is the higher-capability (and more expensive)
-    // variant within a given family.
-    ModelSizeLarge ModelSize = "large"
+	// ModelSizeLarge is the higher-capability (and more expensive)
+	// variant within a given family.
+	ModelSizeLarge ModelSize = "large"
 
-    // ModelSizeSmall is the cheaper and faster sibling of Large.
-    ModelSizeSmall ModelSize = "small"
+	// ModelSizeSmall is the cheaper and faster sibling of Large.
+	ModelSizeSmall ModelSize = "small"
 )
 
 func (m ModelSize) String() string { return string(m) }

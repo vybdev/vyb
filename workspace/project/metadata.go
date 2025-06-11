@@ -176,7 +176,7 @@ func Create(projectRoot string, provider string) error {
 		return fmt.Errorf("failed to build metadata: %w", err)
 	}
 
-	err = annotate(metadata, rootFS)
+	err = annotate(cfg, metadata, rootFS)
 	if err != nil {
 		return fmt.Errorf("failed to annotate metadata: %w", err)
 	}
