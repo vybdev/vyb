@@ -13,9 +13,6 @@ import (
 	"os"
 )
 
-// ... rest of file unchanged until helper functions where schema is passed
-// (Only the relevant sections are shown below for brevity.)
-
 // mapModel converts the (family,size) tuple into the concrete Gemini
 // model identifier expected by the REST endpoint.
 func mapModel(fam config.ModelFamily, sz config.ModelSize) (string, error) {
@@ -152,8 +149,7 @@ type requestPayload struct {
 }
 
 // geminiResponse mirrors the minimal subset of the response envelope we
-// care about. The actual schema will be expanded once streaming/network
-// wiring is added.
+// care about.
 //
 // { "candidates": [ { "content": {"parts": [ {"text": "..."} ] } } ] }
 
