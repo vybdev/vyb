@@ -2,10 +2,12 @@ package llm
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/vybdev/vyb/config"
+	"github.com/vybdev/vyb/llm/internal/gemini"
 	"github.com/vybdev/vyb/llm/internal/openai"
 	"github.com/vybdev/vyb/llm/payload"
-	"strings"
 )
 
 // provider captures the common operations expected from any LLM backend.
@@ -38,7 +40,7 @@ func (*openAIProvider) GetModuleExternalContexts(sysMsg, userMsg string) (*paylo
 }
 
 // -----------------------------------------------------------------------------
-//  Gemini stub – real integration pending
+//  Gemini provider implementation – WorkspaceChangeProposals hooked up
 // -----------------------------------------------------------------------------
 
 func mapGeminiModel(fam config.ModelFamily, sz config.ModelSize) (string, error) {
@@ -53,8 +55,7 @@ func mapGeminiModel(fam config.ModelFamily, sz config.ModelSize) (string, error)
 }
 
 func (*geminiProvider) GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, sysMsg, userMsg string) (*payload.WorkspaceChangeProposal, error) {
-	model, _ := mapGeminiModel(fam, sz) // mapping checked for completeness
-	return nil, fmt.Errorf("gemini provider not implemented (model %s)", model)
+	return gemini.GetWorkspaceChangeProposals(fam, sz, sysMsg, userMsg)
 }
 
 func (*geminiProvider) GetModuleContext(sysMsg, userMsg string) (*payload.ModuleSelfContainedContext, error) {

@@ -81,7 +81,7 @@ purpose during the design discussion.*
    `GEMINI_API_KEY` query param.  
    • Add basic error handling for non-200 responses.
 
-- [ ] **Hook up `GetWorkspaceChangeProposals`**  
+- [x] **Hook up `GetWorkspaceChangeProposals`**  
    • Compose system/user messages, invoke `callGemini`, unmarshal into
    `payload.WorkspaceChangeProposal`.
    • Unit test with `httptest.Server` asserting correct payload.
