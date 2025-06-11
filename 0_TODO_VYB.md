@@ -64,7 +64,7 @@ purpose during the design discussion.*
    • `llm/dispatcher_test.go` – verify `mapGeminiModel` returns the correct
    identifiers for every `(family,size)` pair and errors on unknown size.
 
-- [ ] **Create `llm/internal/gemini` package skeleton**  
+- [x] **Create `llm/internal/gemini` package skeleton**  
    • Directory + `gemini.go` with empty public helpers mirroring the OpenAI
    interface (`GetWorkspaceChangeProposals`, `GetModuleContext`,
    `GetModuleExternalContexts`).  
