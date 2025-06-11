@@ -20,9 +20,14 @@ commands that:
 Requirements:
 
 * Go ≥ 1.24
-* A valid OpenAI API key (export `OPENAI_API_KEY`)
+* A valid API key for your chosen provider (`OPENAI_API_KEY` for OpenAI,
+  `GEMINI_API_KEY` for Gemini).
 
 ```bash
+# set your API key
+$ export OPENAI_API_KEY="sk-..." # or...
+$ export GEMINI_API_KEY="..."
+
 # install the latest directly from github
 $ go install github.com/vybdev/vyb
 
@@ -94,7 +99,7 @@ edit it manually.
 CLI knows which LLM backend to call:
 
 ```yaml
-provider: openai
+provider: openai # or "gemini"
 ```
 
 Only one key is defined for now but the document might grow in the future
@@ -109,8 +114,9 @@ we use a two-part specification:
 * **Family** – logical grouping (`gpt`, `reasoning`, …)
 * **Size**   – `large` or `small`
 
-The active provider maps the tuple to its concrete model name.  For example
-the OpenAI implementation currently resolves to:
+The active provider maps the tuple to its concrete model name.
+
+For example, the **OpenAI** implementation currently resolves to:
 
 | Family / Size | Resolved model |
 |---------------|----------------|
@@ -118,6 +124,13 @@ the OpenAI implementation currently resolves to:
 | gpt   / small | GPT-4.1-mini   |
 | reasoning / large | o3         |
 | reasoning / small | o4-mini    |
+
+The **Gemini** provider maps both families to the same models:
+
+| Family / Size | Resolved model                 |
+|---------------|--------------------------------|
+| *any* / large | gemini-2.5-pro-preview-06-05   |
+| *any* / small | gemini-2.5-flash-preview-05-20 |
 
 This indirection keeps templates provider-agnostic and allows you to switch
 backends without touching prompt definitions.
@@ -140,7 +153,7 @@ into prompts to reduce the number of files that need to be submitted in each req
 ```
 cmd/            entry-points and Cobra command wiring
   template/     YAML + Mustache definitions used by AI commands
-llm/            OpenAI API wrapper + strongly typed JSON payloads
+llm/            LLM provider wrappers + strongly typed JSON payloads
 workspace/      file selection, .gitignore handling, metadata evolution
 ```
 
@@ -148,7 +161,7 @@ Flow of an AI command (`vyb code` for instance):
 
 1. "template" loads the prompt YAML, computes inclusion/exclusion sets.
 2. "selector" walks the workspace to gather the right files.
-3. The user & system messages are built, then sent to `llm/openai`.
+3. The user & system messages are built, then sent to `llm`.
 4. The JSON reply is validated and applied to the working tree.
 
 ---

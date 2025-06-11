@@ -10,4 +10,4 @@ func SupportedProviders() []string {
 // supportedProviders holds the hard-coded list of providers until dynamic
 // registration lands.  Keep the strings in lowercase as they are written
 // verbatim to .vyb/config.yaml.
-var supportedProviders = []string{"openai"}
+var supportedProviders = []string{"openai", "gemini"}
