@@ -2,13 +2,14 @@ package template
 
 import (
 	"fmt"
+	"github.com/vybdev/vyb/config"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/cbroglie/mustache"
 	"github.com/spf13/cobra"
-	"github.com/vybdev/vyb/llm/openai"
+	"github.com/vybdev/vyb/llm"
 	"github.com/vybdev/vyb/llm/payload"
 	"github.com/vybdev/vyb/workspace/context"
 	"github.com/vybdev/vyb/workspace/matcher"
@@ -25,9 +26,14 @@ var systemExclusionPatterns = []string{
 	"go.sum",
 }
 
+type Model struct {
+	Family config.ModelFamily `yaml:"family"`
+	Size   config.ModelSize   `yaml:"size"`
+}
+
 type Definition struct {
 	Name  string `yaml:"name"`
-	Model string `yaml:"model"`
+	Model Model  `yaml:"model"`
 
 	// ArgExclusionPatterns specifies patterns for files that should be excluded as command arguments.
 	ArgExclusionPatterns []string `yaml:"argExclusionPatterns"`
@@ -124,6 +130,11 @@ func execute(cmd *cobra.Command, args []string, def *Definition) error {
 
 	rootFS := os.DirFS(absRoot)
 
+	cfg, err := config.Load(absRoot)
+	if err != nil {
+		return err
+	}
+
 	if relTarget != nil {
 		if !matcher.IsIncluded(rootFS, *relTarget, append(systemExclusionPatterns, def.ArgExclusionPatterns...), def.ArgInclusionPatterns) {
 			return fmt.Errorf("command \"%s\" does not support given target %s", cmd.Use, *relTarget)
@@ -206,7 +217,7 @@ func execute(cmd *cobra.Command, args []string, def *Definition) error {
 
 	systemMessage := rendered
 
-	proposal, err := openai.GetWorkspaceChangeProposals(systemMessage, userMsg)
+	proposal, err := llm.GetWorkspaceChangeProposals(cfg, def.Model.Family, def.Model.Size, systemMessage, userMsg)
 	if err != nil {
 		return err
 	}

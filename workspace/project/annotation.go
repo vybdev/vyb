@@ -2,7 +2,8 @@ package project
 
 import (
 	"fmt"
-	"github.com/vybdev/vyb/llm/openai"
+	"github.com/vybdev/vyb/config"
+	"github.com/vybdev/vyb/llm"
 	"github.com/vybdev/vyb/llm/payload"
 	"io/fs"
 	"strings"
@@ -22,7 +23,7 @@ type Annotation struct {
 // modules back to the root. For each module that has no Annotation, it calls
 // addOrUpdateSelfContainedContext for it after all its submodules are annotated. The creation of
 // annotations is performed in parallel using goroutines.
-func annotate(metadata *Metadata, sysfs fs.FS) error {
+func annotate(cfg *config.Config, metadata *Metadata, sysfs fs.FS) error {
 	if metadata == nil || metadata.Modules == nil {
 		return nil
 	}
@@ -56,7 +57,7 @@ func annotate(metadata *Metadata, sysfs fs.FS) error {
 			for _, sub := range mod.Modules {
 				<-dones[sub]
 			}
-			err := addOrUpdateSelfContainedContext(mod, sysfs)
+			err := addOrUpdateSelfContainedContext(cfg, mod, sysfs)
 			if err != nil {
 				errCh <- fmt.Errorf("failed to create annotation for module %q: %w", mod.Name, err)
 				// Signal done to avoid blocking parents.
@@ -82,7 +83,7 @@ func annotate(metadata *Metadata, sysfs fs.FS) error {
 	// Add all external context annotations in a single shot
 	// In the future, we should make this take into consideration
 	// the token count of the annotations and possibly split the calls.
-	return addOrUpdateExternalContext(root)
+	return addOrUpdateExternalContext(cfg, root)
 }
 
 // collectModulesInPostOrder gathers modules in a post-order traversal (children first).
@@ -134,7 +135,7 @@ func buildModuleContextRequest(m *Module) *payload.ModuleSelfContainedContextReq
 }
 
 // addOrUpdateSelfContainedContext calls OpenAI to construct the internal and public context of a given module.
-func addOrUpdateSelfContainedContext(m *Module, sysfs fs.FS) error {
+func addOrUpdateSelfContainedContext(cfg *config.Config, m *Module, sysfs fs.FS) error {
 	// Build the ModuleSelfContainedContextRequest tree starting from this module.
 	req := buildModuleContextRequest(m)
 
@@ -171,7 +172,7 @@ you included in the Internal Context, but also all the Public Context informatio
 
 Each type of context should be as descriptive as possible, using around one thousand LLM tokens, each.`
 
-	context, err := openai.GetModuleContext(systemMessage, userMsg)
+	context, err := llm.GetModuleContext(cfg, systemMessage, userMsg)
 
 	fmt.Printf("  Got response for module %q\n", m.Name)
 
@@ -216,7 +217,7 @@ Each type of context should be as descriptive as possible, using around one thou
 //     corresponding module, creating annotation objects when necessary.
 //
 // If the LLM call fails the error is propagated to the caller.
-func addOrUpdateExternalContext(m *Module) error {
+func addOrUpdateExternalContext(cfg *config.Config, m *Module) error {
 	if m == nil {
 		return nil
 	}
@@ -285,7 +286,7 @@ concise explanation of where the module lives in the hierarchy and what lives
 
 Return your answer as JSON following the schema you have been provided.`
 
-	resp, err := openai.GetModuleExternalContexts(sysPrompt, userMsg)
+	resp, err := llm.GetModuleExternalContexts(cfg, sysPrompt, userMsg)
 	if err != nil {
 		return err
 	}

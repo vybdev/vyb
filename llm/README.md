@@ -1,7 +1,17 @@
 # llm Package
 
-`llm` wraps all interaction with OpenAI and exposes strongly-typed data
+`llm` wraps all interaction with OpenAI and exposes strongly typed data
 structures so the rest of the codebase never has to deal with raw JSON.
+
+## Model abstractions ⚙️
+
+| Type           | Constants                | Purpose                              |
+|----------------|--------------------------|--------------------------------------|
+| `ModelFamily`  | `gpt`, `reasoning`       | High-level family/category of models |
+| `ModelSize`    | `large`, `small`         | Coarse size tier inside a family     |
+
+The `(family, size)` tuple is later resolved by the active provider into a
+concrete model string (e.g. `GPT+Large → "GPT-4.1"`).
 
 ## Sub-packages
 

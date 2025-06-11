@@ -1,0 +1,67 @@
+package llm
+
+import (
+	"fmt"
+	"github.com/vybdev/vyb/config"
+	"github.com/vybdev/vyb/llm/internal/openai"
+	"github.com/vybdev/vyb/llm/payload"
+)
+
+// provider captures the common operations expected from any LLM backend.
+// It is intentionally unexported so that the public surface of the llm
+// package stays minimal while allowing internal dispatch based on user
+// configuration.
+//
+// Additional methods should be appended here whenever new high-level
+// helpers are added to the llm façade.
+type provider interface {
+	GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, systemMessage, userMessage string) (*payload.WorkspaceChangeProposal, error)
+	GetModuleContext(systemMessage, userMessage string) (*payload.ModuleSelfContainedContext, error)
+	GetModuleExternalContexts(systemMessage, userMessage string) (*payload.ModuleExternalContextResponse, error)
+}
+
+type openAIProvider struct{}
+
+func (*openAIProvider) GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, sysMsg, userMsg string) (*payload.WorkspaceChangeProposal, error) {
+	return openai.GetWorkspaceChangeProposals(fam, sz, sysMsg, userMsg)
+}
+
+func (*openAIProvider) GetModuleContext(sysMsg, userMsg string) (*payload.ModuleSelfContainedContext, error) {
+	return openai.GetModuleContext(sysMsg, userMsg)
+}
+
+func (*openAIProvider) GetModuleExternalContexts(sysMsg, userMsg string) (*payload.ModuleExternalContextResponse, error) {
+	return openai.GetModuleExternalContexts(sysMsg, userMsg)
+}
+
+func GetModuleExternalContexts(cfg *config.Config, sysMsg, userMsg string) (*payload.ModuleExternalContextResponse, error) {
+	if provider, err := resolveProvider(cfg); err != nil {
+		return nil, err
+	} else {
+		return provider.GetModuleExternalContexts(sysMsg, userMsg)
+	}
+}
+
+func GetModuleContext(cfg *config.Config, sysMsg, userMsg string) (*payload.ModuleSelfContainedContext, error) {
+	if provider, err := resolveProvider(cfg); err != nil {
+		return nil, err
+	} else {
+		return provider.GetModuleContext(sysMsg, userMsg)
+	}
+}
+func GetWorkspaceChangeProposals(cfg *config.Config, fam config.ModelFamily, sz config.ModelSize, sysMsg, userMsg string) (*payload.WorkspaceChangeProposal, error) {
+	if provider, err := resolveProvider(cfg); err != nil {
+		return nil, err
+	} else {
+		return provider.GetWorkspaceChangeProposals(fam, sz, sysMsg, userMsg)
+	}
+}
+
+func resolveProvider(cfg *config.Config) (provider, error) {
+	switch cfg.Provider {
+	case "openai":
+		return &openAIProvider{}, nil
+	default:
+		return nil, fmt.Errorf("unknown provider: %s", cfg.Provider)
+	}
+}

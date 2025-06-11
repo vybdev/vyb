@@ -2,6 +2,7 @@ package project
 
 import (
 	"fmt"
+	"github.com/vybdev/vyb/config"
 	"os"
 	"path/filepath"
 
@@ -87,27 +88,31 @@ func Update(projectRoot string) error {
 
 	rootFS := os.DirFS(absRoot)
 
-	// Step 1 – load existing metadata (with annotations).
+	// load existing metadata (with annotations).
 	stored, err := loadStoredMetadata(rootFS)
 	if err != nil {
 		return err
 	}
 
-	// Step 2 – build a fresh snapshot.
+	// build a fresh snapshot.
 	fresh, err := buildMetadata(rootFS)
 	if err != nil {
 		return err
 	}
 
-	// Step 3 – patch stored metadata with the fresh structure.
+	// patch stored metadata with the fresh structure.
 	stored.Patch(fresh)
 
-	// Step 4 – (re)annotate modules missing or with invalid annotations.
-	if err := annotate(stored, rootFS); err != nil {
+	cfg, err := config.Load(absRoot)
+	if err != nil {
+		return err
+	}
+	// (re)annotate modules missing or with invalid annotations.
+	if err := annotate(cfg, stored, rootFS); err != nil {
 		return err
 	}
 
-	// Step 5 – persist back to .vyb/metadata.yaml.
+	// persist back to .vyb/metadata.yaml.
 	data, err := yaml.Marshal(stored)
 	if err != nil {
 		return fmt.Errorf("failed to marshal updated metadata: %w", err)

@@ -2,6 +2,7 @@ package template
 
 import (
 	"embed"
+	"github.com/vybdev/vyb/config"
 	"gopkg.in/yaml.v3"
 	"io/fs"
 	"os"
@@ -37,13 +38,18 @@ func loadConfigs(rootFS fs.FS) []*Definition {
 				continue
 			}
 
-			var cmdDef Definition
-			if err := yaml.Unmarshal(data, &cmdDef); err != nil {
+			cmdDef := &Definition{
+				Model: Model{
+					Family: config.ModelFamilyReasoning,
+					Size:   config.ModelSizeLarge,
+				},
+			}
+			if err := yaml.Unmarshal(data, cmdDef); err != nil {
 				// Handle or log error as needed
 				continue
 			}
 
-			cmdDefinitions = append(cmdDefinitions, &cmdDef)
+			cmdDefinitions = append(cmdDefinitions, cmdDef)
 		}
 	}
 

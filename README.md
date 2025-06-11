@@ -38,7 +38,8 @@ $ export PATH=$GOPATH/bin:$PATH
 ## Quick-start
 
 ```bash
-# initialise metadata at the repository root
+# initialize repository configuration. 
+# This will analyze the project files, and summarize them using your LLM provider of choice.
 $ vyb init
 
 # ask the LLM to implement a TODO in the current module
@@ -85,6 +86,41 @@ A hierarchical representation of the workspace:
 
 The metadata is fully derived from the file system; you should never
 edit it manually.
+
+
+### Project Configuration (`.vyb/config.yaml`)
+
+`vyb init` creates a **config file** alongside the project metadata so the
+CLI knows which LLM backend to call:
+
+```yaml
+provider: openai
+```
+
+Only one key is defined for now but the document might grow in the future
+(temperature defaults, retries, …).  The provider string is case-insensitive
+and must match one of the options returned by `vyb llm.SupportedProviders()`.
+
+### Model abstraction – family & size
+
+Instead of hard-coding provider-specific model identifiers in every template
+we use a two-part specification:
+
+* **Family** – logical grouping (`gpt`, `reasoning`, …)
+* **Size**   – `large` or `small`
+
+The active provider maps the tuple to its concrete model name.  For example
+the OpenAI implementation currently resolves to:
+
+| Family / Size | Resolved model |
+|---------------|----------------|
+| gpt   / large | GPT-4.1        |
+| gpt   / small | GPT-4.1-mini   |
+| reasoning / large | o3         |
+| reasoning / small | o4-mini    |
+
+This indirection keeps templates provider-agnostic and allows you to switch
+backends without touching prompt definitions.
 
 ### Annotations
 
