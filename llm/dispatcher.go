@@ -5,6 +5,7 @@ import (
 	"github.com/vybdev/vyb/config"
 	"github.com/vybdev/vyb/llm/internal/openai"
 	"github.com/vybdev/vyb/llm/payload"
+	"strings"
 )
 
 // provider captures the common operations expected from any LLM backend.
@@ -22,6 +23,8 @@ type provider interface {
 
 type openAIProvider struct{}
 
+type geminiProvider struct{}
+
 func (*openAIProvider) GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, sysMsg, userMsg string) (*payload.WorkspaceChangeProposal, error) {
 	return openai.GetWorkspaceChangeProposals(fam, sz, sysMsg, userMsg)
 }
@@ -33,6 +36,38 @@ func (*openAIProvider) GetModuleContext(sysMsg, userMsg string) (*payload.Module
 func (*openAIProvider) GetModuleExternalContexts(sysMsg, userMsg string) (*payload.ModuleExternalContextResponse, error) {
 	return openai.GetModuleExternalContexts(sysMsg, userMsg)
 }
+
+// -----------------------------------------------------------------------------
+//  Gemini stub – real integration pending
+// -----------------------------------------------------------------------------
+
+func mapGeminiModel(fam config.ModelFamily, sz config.ModelSize) (string, error) {
+	switch sz {
+	case config.ModelSizeSmall:
+		return "gemini-2.5-flash-preview-05-20", nil
+	case config.ModelSizeLarge:
+		return "gemini-2.5-pro-preview-06-05", nil
+	default:
+		return "", fmt.Errorf("gemini: unsupported model size %s", sz)
+	}
+}
+
+func (*geminiProvider) GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, sysMsg, userMsg string) (*payload.WorkspaceChangeProposal, error) {
+	model, _ := mapGeminiModel(fam, sz) // mapping checked for completeness
+	return nil, fmt.Errorf("gemini provider not implemented (model %s)", model)
+}
+
+func (*geminiProvider) GetModuleContext(sysMsg, userMsg string) (*payload.ModuleSelfContainedContext, error) {
+	return nil, fmt.Errorf("gemini provider not implemented")
+}
+
+func (*geminiProvider) GetModuleExternalContexts(sysMsg, userMsg string) (*payload.ModuleExternalContextResponse, error) {
+	return nil, fmt.Errorf("gemini provider not implemented")
+}
+
+// -----------------------------------------------------------------------------
+//  Public façade helpers remain unchanged (dispatcher section).
+// -----------------------------------------------------------------------------
 
 func GetModuleExternalContexts(cfg *config.Config, sysMsg, userMsg string) (*payload.ModuleExternalContextResponse, error) {
 	if provider, err := resolveProvider(cfg); err != nil {
@@ -58,9 +93,11 @@ func GetWorkspaceChangeProposals(cfg *config.Config, fam config.ModelFamily, sz 
 }
 
 func resolveProvider(cfg *config.Config) (provider, error) {
-	switch cfg.Provider {
+	switch strings.ToLower(cfg.Provider) {
 	case "openai":
 		return &openAIProvider{}, nil
+	case "gemini":
+		return &geminiProvider{}, nil
 	default:
 		return nil, fmt.Errorf("unknown provider: %s", cfg.Provider)
 	}
