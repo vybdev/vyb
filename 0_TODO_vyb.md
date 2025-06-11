@@ -153,7 +153,7 @@ one task at a time. Mark with an [x] the task you have finished.
    * ensure no import cycles.
    * mark this task as completed
 
-- [ ] `test: integration – provider dispatch`
+- [x] `test: integration – provider dispatch`
    * add table-driven test that mocks `config.Load()` and checks correct
      provider is picked (uses testdouble implementing provider iface).
    * mark this task as completed
