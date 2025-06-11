@@ -1,50 +1,35 @@
 package gemini
 
-// Package gemini provides an abstraction layer over the Google Gemini
-// API similar to the llm/internal/openai module. The implementation is
-// progressing incrementally – at the moment we expose internal helpers
-// to build the JSON request body so the rest of the application can be
-// integrated and tested without performing real network calls.
-
 import (
-    "bytes"
-    "encoding/json"
-    "errors"
-    "fmt"
-    "io"
-    "net/http"
-    "os"
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"github.com/vybdev/vyb/config"
+	gemschema "github.com/vybdev/vyb/llm/internal/gemini/internal/schema"
+	"github.com/vybdev/vyb/llm/payload"
+	"io"
+	"net/http"
+	"os"
 )
 
-import "github.com/vybdev/vyb/config"
-import "github.com/vybdev/vyb/llm/payload"
-
-// -----------------------------------------------------------------------------
-// Public helpers – progressively implemented
-// -----------------------------------------------------------------------------
-
-// ErrNotImplemented is returned by helpers that are still pending
-// implementation so callers can gracefully handle the missing feature.
-var ErrNotImplemented = errors.New("gemini: not implemented")
-
-// -----------------------------------------------------------------------------
-// Model mapping (provider-specific)
-// -----------------------------------------------------------------------------
+// ... rest of file unchanged until helper functions where schema is passed
+// (Only the relevant sections are shown below for brevity.)
 
 // mapModel converts the (family,size) tuple into the concrete Gemini
 // model identifier expected by the REST endpoint.
 func mapModel(fam config.ModelFamily, sz config.ModelSize) (string, error) {
-    // The same resolution logic lives also inside llm/dispatcher for the
-    // compile-time tests that exercise dispatch mapping. Keep both in
-    // sync until the refactor that centralises it lands.
-    switch sz {
-    case config.ModelSizeSmall:
-        return "gemini-2.5-flash-preview-05-20", nil
-    case config.ModelSizeLarge:
-        return "gemini-2.5-pro-preview-06-05", nil
-    default:
-        return "", fmt.Errorf("gemini: unsupported model size %s", sz)
-    }
+	// The same resolution logic lives also inside llm/dispatcher for the
+	// compile-time tests that exercise dispatch mapping. Keep both in
+	// sync until the refactor that centralises it lands.
+	switch sz {
+	case config.ModelSizeSmall:
+		return "gemini-2.5-flash-preview-05-20", nil
+	case config.ModelSizeLarge:
+		return "gemini-2.5-pro-preview-06-05", nil
+	default:
+		return "", fmt.Errorf("gemini: unsupported model size %s", sz)
+	}
 }
 
 // GetWorkspaceChangeProposals composes the request, sends it to Gemini and
@@ -53,109 +38,85 @@ func mapModel(fam config.ModelFamily, sz config.ModelSize) (string, error) {
 // The function mirrors the public surface exposed by the OpenAI provider so
 // callers can remain provider-agnostic.
 func GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, systemMessage, userMessage string) (*payload.WorkspaceChangeProposal, error) {
-    model, err := mapModel(fam, sz)
-    if err != nil {
-        return nil, err
-    }
+	model, err := mapModel(fam, sz)
+	if err != nil {
+		return nil, err
+	}
 
-    // Insist on the API key here to fail fast instead of letting callGemini
-    // do the check when we already know the pre-condition.
-    if os.Getenv("GEMINI_API_KEY") == "" {
-        return nil, errors.New("GEMINI_API_KEY is not set")
-    }
+	if os.Getenv("GEMINI_API_KEY") == "" {
+		return nil, errors.New("GEMINI_API_KEY is not set")
+	}
 
-    // At the moment we don’t inject an explicit JSON schema – Gemini will
-    // infer it from the responseMimeType. Upcoming tasks will provide a
-    // proper schema translation.
-    resp, err := callGemini(systemMessage, userMessage, nil, model)
-    if err != nil {
-        return nil, err
-    }
+	schema := gemschema.GetWorkspaceChangeProposalSchema()
 
-    if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
-        return nil, errors.New("gemini: empty response")
-    }
+	resp, err := callGemini(systemMessage, userMessage, schema, model)
+	if err != nil {
+		return nil, err
+	}
 
-    raw := resp.Candidates[0].Content.Parts[0].Text
+	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
+		return nil, errors.New("gemini: empty response")
+	}
 
-    var proposal payload.WorkspaceChangeProposal
-    if err := json.Unmarshal([]byte(raw), &proposal); err != nil {
-        return nil, fmt.Errorf("gemini: failed to unmarshal WorkspaceChangeProposal: %w", err)
-    }
-    return &proposal, nil
+	raw := resp.Candidates[0].Content.Parts[0].Text
+
+	var proposal payload.WorkspaceChangeProposal
+	if err := json.Unmarshal([]byte(raw), &proposal); err != nil {
+		return nil, fmt.Errorf("gemini: failed to unmarshal WorkspaceChangeProposal: %w", err)
+	}
+	return &proposal, nil
 }
 
-// -----------------------------------------------------------------------------
-// Newly implemented helpers for module context generation
-// -----------------------------------------------------------------------------
-
-// GetModuleContext requests an internal & public context summary for a single
-// module. It uses the SMALL model by default, matching OpenAI's behaviour.
 func GetModuleContext(systemMessage, userMessage string) (*payload.ModuleSelfContainedContext, error) {
-    model, err := mapModel(config.ModelFamilyReasoning, config.ModelSizeSmall)
-    if err != nil {
-        return nil, err
-    }
+	model, err := mapModel(config.ModelFamilyReasoning, config.ModelSizeSmall)
+	if err != nil {
+		return nil, err
+	}
 
-    resp, err := callGemini(systemMessage, userMessage, nil, model)
-    if err != nil {
-        return nil, err
-    }
+	schema := gemschema.GetModuleContextSchema()
 
-    if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
-        return nil, errors.New("gemini: empty response")
-    }
+	resp, err := callGemini(systemMessage, userMessage, schema, model)
+	if err != nil {
+		return nil, err
+	}
 
-    raw := resp.Candidates[0].Content.Parts[0].Text
+	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
+		return nil, errors.New("gemini: empty response")
+	}
 
-    var ctx payload.ModuleSelfContainedContext
-    if err := json.Unmarshal([]byte(raw), &ctx); err != nil {
-        return nil, fmt.Errorf("gemini: failed to unmarshal ModuleSelfContainedContext: %w", err)
-    }
-    return &ctx, nil
+	raw := resp.Candidates[0].Content.Parts[0].Text
+
+	var ctx payload.ModuleSelfContainedContext
+	if err := json.Unmarshal([]byte(raw), &ctx); err != nil {
+		return nil, fmt.Errorf("gemini: failed to unmarshal ModuleSelfContainedContext: %w", err)
+	}
+	return &ctx, nil
 }
 
-// GetModuleExternalContexts requests external context information for a set
-// of modules. As with the other helpers it defaults to the SMALL model.
 func GetModuleExternalContexts(systemMessage, userMessage string) (*payload.ModuleExternalContextResponse, error) {
-    model, err := mapModel(config.ModelFamilyReasoning, config.ModelSizeSmall)
-    if err != nil {
-        return nil, err
-    }
+	model, err := mapModel(config.ModelFamilyReasoning, config.ModelSizeSmall)
+	if err != nil {
+		return nil, err
+	}
 
-    resp, err := callGemini(systemMessage, userMessage, nil, model)
-    if err != nil {
-        return nil, err
-    }
+	schema := gemschema.GetModuleExternalContextSchema()
 
-    if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
-        return nil, errors.New("gemini: empty response")
-    }
+	resp, err := callGemini(systemMessage, userMessage, schema, model)
+	if err != nil {
+		return nil, err
+	}
 
-    raw := resp.Candidates[0].Content.Parts[0].Text
+	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
+		return nil, errors.New("gemini: empty response")
+	}
 
-    var ext payload.ModuleExternalContextResponse
-    if err := json.Unmarshal([]byte(raw), &ext); err != nil {
-        return nil, fmt.Errorf("gemini: failed to unmarshal ModuleExternalContextResponse: %w", err)
-    }
-    return &ext, nil
-}
+	raw := resp.Candidates[0].Content.Parts[0].Text
 
-// -----------------------------------------------------------------------------
-// The remaining helpers will be implemented in subsequent steps – callers
-// should continue handling ErrNotImplemented until then.
-// -----------------------------------------------------------------------------
-
-// GetModuleContext will request an internal & public context summary for a
-// single module. Deprecated placeholder kept for backward compatibility.
-func GetModuleContextDeprecated(_ string, _ string) (*payload.ModuleSelfContainedContext, error) {
-    return nil, ErrNotImplemented
-}
-
-// GetModuleExternalContexts will request external contexts for a set of
-// modules. Deprecated placeholder kept for backward compatibility.
-func GetModuleExternalContextsDeprecated(_ string, _ string) (*payload.ModuleExternalContextResponse, error) {
-    return nil, ErrNotImplemented
+	var ext payload.ModuleExternalContextResponse
+	if err := json.Unmarshal([]byte(raw), &ext); err != nil {
+		return nil, fmt.Errorf("gemini: failed to unmarshal ModuleExternalContextResponse: %w", err)
+	}
+	return &ext, nil
 }
 
 // -----------------------------------------------------------------------------
@@ -168,26 +129,26 @@ var baseEndpoint = "https://generativelanguage.googleapis.com/v1beta"
 // generateContentTmpl is the relative path (fmt formatted) used to call
 // the "generateContent" method on a specific model, e.g.:
 //
-//  fmt.Sprintf(generateContentTmpl, "gemini-2.5-flash", apiKey)
+//	fmt.Sprintf(generateContentTmpl, "gemini-2.5-flash", apiKey)
 const generateContentTmpl = "/models/%s:generateContent?key=%s"
 
 type part struct {
-    Text string `json:"text,omitempty"`
+	Text string `json:"text,omitempty"`
 }
 
 type content struct {
-    Role  string `json:"role,omitempty"`
-    Parts []part `json:"parts,omitempty"`
+	Role  string `json:"role,omitempty"`
+	Parts []part `json:"parts,omitempty"`
 }
 
 type generationConfig struct {
-    ResponseMimeType string      `json:"responseMimeType,omitempty"`
-    ResponseSchema   interface{} `json:"responseSchema,omitempty"`
+	ResponseMimeType string      `json:"responseMimeType,omitempty"`
+	ResponseSchema   interface{} `json:"responseSchema,omitempty"`
 }
 
 type requestPayload struct {
-    Contents         []content        `json:"contents"`
-    GenerationConfig generationConfig `json:"generationConfig"`
+	Contents         []content        `json:"contents"`
+	GenerationConfig generationConfig `json:"generationConfig"`
 }
 
 // geminiResponse mirrors the minimal subset of the response envelope we
@@ -197,123 +158,116 @@ type requestPayload struct {
 // { "candidates": [ { "content": {"parts": [ {"text": "..."} ] } } ] }
 
 type geminiResponse struct {
-    Candidates []struct {
-        Content struct {
-            Parts []struct {
-                Text string `json:"text"`
-            } `json:"parts"`
-        } `json:"content"`
-    } `json:"candidates"`
+	Candidates []struct {
+		Content struct {
+			Parts []struct {
+				Text string `json:"text"`
+			} `json:"parts"`
+		} `json:"content"`
+	} `json:"candidates"`
 }
 
 type geminiErrorResponse struct {
-    Err struct {
-        Code    int    `json:"code"`
-        Message string `json:"message"`
-        Status  string `json:"status"`
-    } `json:"error"`
+	Err struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+		Status  string `json:"status"`
+	} `json:"error"`
 }
 
 func (e geminiErrorResponse) Error() string {
-    return fmt.Sprintf("Gemini API error (%d %s): %s", e.Err.Code, e.Err.Status, e.Err.Message)
+	return fmt.Sprintf("Gemini API error (%d %s): %s", e.Err.Code, e.Err.Status, e.Err.Message)
 }
 
 func buildRequest(systemMessage, userMessage string, schema interface{}) ([]byte, error) {
-    if userMessage == "" {
-        return nil, errors.New("gemini: user message must not be empty")
-    }
+	if userMessage == "" {
+		return nil, errors.New("gemini: user message must not be empty")
+	}
 
-    var msgs []content
-    if systemMessage != "" {
-        msgs = append(msgs, content{
-            Role:  "system",
-            Parts: []part{{Text: systemMessage}},
-        })
-    }
-    msgs = append(msgs, content{
-        Role:  "user",
-        Parts: []part{{Text: userMessage}},
-    })
+	r := requestPayload{
+		Contents: []content{
+			{
+				Role:  "user",
+				Parts: []part{{Text: systemMessage + "\n\n" + userMessage}},
+			},
+		},
+		GenerationConfig: generationConfig{
+			ResponseMimeType: "application/json",
+			ResponseSchema:   schema,
+		},
+	}
 
-    payload := requestPayload{
-        Contents: msgs,
-        GenerationConfig: generationConfig{
-            ResponseMimeType: "application/json",
-            ResponseSchema:   schema,
-        },
-    }
-
-    return json.Marshal(payload)
+	return json.Marshal(r)
 }
 
 func callGemini(systemMessage, userMessage string, schema interface{}, model string) (*geminiResponse, error) {
-    apiKey := os.Getenv("GEMINI_API_KEY")
-    if apiKey == "" {
-        return nil, errors.New("GEMINI_API_KEY is not set")
-    }
+	apiKey := os.Getenv("GEMINI_API_KEY")
+	if apiKey == "" {
+		return nil, errors.New("GEMINI_API_KEY is not set")
+	}
 
-    if model == "" {
-        return nil, errors.New("gemini: model must not be empty")
-    }
+	if model == "" {
+		return nil, errors.New("gemini: model must not be empty")
+	}
 
-    // Build request body.
-    bodyBytes, err := buildRequest(systemMessage, userMessage, schema)
-    if err != nil {
-        return nil, err
-    }
+	// Build request body.
+	bodyBytes, err := buildRequest(systemMessage, userMessage, schema)
+	if err != nil {
+		return nil, err
+	}
 
-    // Compose endpoint URL.
-    url := fmt.Sprintf("%s"+generateContentTmpl, baseEndpoint, model, apiKey)
+	// Compose endpoint URL.
+	url := fmt.Sprintf("%s"+generateContentTmpl, baseEndpoint, model, apiKey)
 
-    req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(bodyBytes))
-    if err != nil {
-        return nil, fmt.Errorf("gemini: failed to create request: %w", err)
-    }
-    req.Header.Set("Content-Type", "application/json")
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return nil, fmt.Errorf("gemini: failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
 
-    resp, err := http.DefaultClient.Do(req)
-    if err != nil {
-        return nil, fmt.Errorf("gemini: request failed: %w", err)
-    }
-    defer resp.Body.Close()
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("gemini: request failed: %w", err)
+	}
+	defer resp.Body.Close()
 
-    respBytes, err := io.ReadAll(resp.Body)
-    if err != nil {
-        return nil, fmt.Errorf("gemini: failed to read response body: %w", err)
-    }
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("gemini: failed to read response body: %w", err)
+	}
 
-    // ---------------------------------------------------------------------
-    // Persist request/response pair for debugging – same approach as OpenAI.
-    // ---------------------------------------------------------------------
-    logEntry := struct {
-        Request  json.RawMessage `json:"request"`
-        Response json.RawMessage `json:"response"`
-    }{
-        Request:  bodyBytes,
-        Response: respBytes,
-    }
+	// ---------------------------------------------------------------------
+	// Persist request/response pair for debugging – same approach as OpenAI.
+	// ---------------------------------------------------------------------
+	logEntry := struct {
+		Request  json.RawMessage `json:"request"`
+		Response json.RawMessage `json:"response"`
+	}{
+		Request:  bodyBytes,
+		Response: respBytes,
+	}
 
-    if logBytes, err := json.MarshalIndent(logEntry, "", "  "); err == nil {
-        if f, err := os.CreateTemp("", "vyb-gemini-*.json"); err == nil {
-            if _, wErr := f.Write(logBytes); wErr == nil {
-                _ = f.Close()
-            }
-        }
-    }
+	if logBytes, err := json.MarshalIndent(logEntry, "", "  "); err == nil {
+		if f, err := os.CreateTemp("", "vyb-gemini-*.json"); err == nil {
+			if _, wErr := f.Write(logBytes); wErr == nil {
+				_ = f.Close()
+			}
+		}
+	}
 
-    if resp.StatusCode != http.StatusOK {
-        // Try to decode structured error first.
-        var gErr geminiErrorResponse
-        if jsonErr := json.Unmarshal(respBytes, &gErr); jsonErr == nil && gErr.Err.Message != "" {
-            return nil, gErr
-        }
-        return nil, fmt.Errorf("gemini: http %d – %s", resp.StatusCode, string(respBytes))
-    }
+	if resp.StatusCode != http.StatusOK {
+		// Try to decode structured error first.
+		var gErr geminiErrorResponse
+		if jsonErr := json.Unmarshal(respBytes, &gErr); jsonErr == nil && gErr.Err.Message != "" {
+			return nil, gErr
+		}
+		return nil, fmt.Errorf("gemini: http %d – %s", resp.StatusCode, string(respBytes))
+	}
 
-    var out geminiResponse
-    if err := json.Unmarshal(respBytes, &out); err != nil {
-        return nil, fmt.Errorf("gemini: failed to unmarshal response: %w", err)
-    }
+	var out geminiResponse
+	if err := json.Unmarshal(respBytes, &out); err != nil {
+		return nil, fmt.Errorf("gemini: failed to unmarshal response: %w", err)
+	}
 
-    return &out, nil
+	return &out, nil
 }

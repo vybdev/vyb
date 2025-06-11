@@ -1,0 +1,28 @@
+{
+    "type": "object",
+    "properties": {
+      "modules": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Full module name (path from workspace root)."
+            },
+            "external_context": {
+              "type": "string",
+              "description": "External context for this module."
+            }
+          },
+          "required": [
+            "name",
+            "external_context"
+          ]
+        }
+      }
+    },
+    "required": [
+      "modules"
+    ]
+  }

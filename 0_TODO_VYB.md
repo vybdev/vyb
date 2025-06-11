@@ -10,7 +10,8 @@ Both GPT and Reasoning model families should map to the following models:
 
 Use GEMINI_API_KEY env variable for the api key.
 
-Here is an example of Gemini rest call using structured outputs. The `generationConfig` works similarly to the `json_schema` in OpenAI. 
+Here is an example of Gemini rest call using structured outputs. The
+`generationConfig` works similarly to the `json_schema` in OpenAI. 
 ```
 curl "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$GOOGLE_API_KEY" \
 -H 'Content-Type: application/json' \
@@ -42,14 +43,14 @@ curl "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:g
 ```
 
 ## How you will do it
-Perform the next task listed under "What is left to do" in the order they are listed.
-You are expected to accomplish no more and no less than one task at a time.
-Mark with an [x] the task you have finished.
+Perform the next task listed under "What is left to do" in the order
+they are listed. You are expected to accomplish no more and no less than
+one task at a time. Mark with an [x] the task you have finished.
 
 ## What you need to know
 
-*The Q&A section has been removed for brevity – it has already fulfilled its
-purpose during the design discussion.*
+*The Q&A section has been removed for brevity – it has already fulfilled
+its purpose during the design discussion.*
 
 ## What will it look like
 *See previous revision – the high-level design was accepted.*
@@ -72,8 +73,8 @@ purpose during the design discussion.*
 
 - [x] **Implement request/response structs & endpoint constants**  
    • Define `message`, `request`, `generationConfig`, and `geminiResponse`
-   types.
-   • Include helper for marshalling schema into `generationConfig`.
+   types.  
+   • Include helper for marshalling schema into `generationConfig`.  
    • No network call yet – unit tests focus on JSON construction.
 
 - [x] **Wire HTTP call (non-streaming)**  
@@ -83,7 +84,7 @@ purpose during the design discussion.*
 
 - [x] **Hook up `GetWorkspaceChangeProposals`**  
    • Compose system/user messages, invoke `callGemini`, unmarshal into
-   `payload.WorkspaceChangeProposal`.
+   `payload.WorkspaceChangeProposal`.  
    • Unit test with `httptest.Server` asserting correct payload.
 
 - [x] **Hook up `GetModuleContext` & `GetModuleExternalContexts`**  
@@ -93,17 +94,15 @@ purpose during the design discussion.*
 - [x] **Enable logging of request/response pairs**  
    • Same convention as OpenAI (`vyb-gemini-*.json`).
 
-- [ ] **Replace dispatcher stubs**  
+- [x] **Replace dispatcher stubs**  
    • Update `geminiProvider` methods to delegate to
    `llm/internal/gemini` helpers.  
    • Remove temporary error returns.
 
-- [ ] **Environment variable validation**  
-   • Return descriptive error when `GEMINI_API_KEY` is missing.  
-   • Unit test for this behaviour.
-
-- [ ] **Extend provider list tests**  
+- [x] **Extend provider list tests**  
     • Assert `llm.SupportedProviders()` now includes "gemini".
+
+- [x] Replace the `nil` schemas with proper json schemas for the structured responses in gemini. Use the same schemas from openai, but map them to gemini-specific structs. Make a copy of the schema folder into gemini for now.  
 
 - [ ] **Documentation**  
     • Update `llm/README.md` & root `README.md` with Gemini configuration
