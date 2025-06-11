@@ -140,28 +140,14 @@ one task at a time. Mark with an [x] the task you have finished.
    * compile-time stubs for future providers.
    * mark this task as completed
 
-- [ ] `refactor(llm/openai): map family/size to concrete model`
+- [x] `refactor(llm/openai): map family/size to concrete model`
    * implement `mapModel` as specified.
    * update exported helpers (`GetWorkspaceChangeProposals`, etc.) to
      accept model spec and project config structs
    * adapt unit tests.
    * mark this task as completed
 
-- [ ] `refactor(cmd/template): drop raw model field`
-   * remove `Model` field from Definition struct.
-   * adjust loading logic & YAML templates to new nested
-     `model: {family:, size:}` layout.
-   * update embedded templates accordingly and add regression tests.
-   * mark this task as completed
-
-- [ ] `feat(llm): façade helpers delegating based on config`
-   * add `llm.GetWorkspaceChangeProposals` that calls provider-specific
-     implementation after resolving provider & mapping.
-   * update all call-sites (mainly cmd/template) to use new llm package.
-   * ensure backward compatibility test passes.
-   * mark this task as completed
-
-- [ ] `chore(openai): remove direct usages from business code`
+- [x] `chore(openai): remove direct usages from business code`
    * search & replace openai.* calls outside llm/openai → switch to llm
      package.
    * ensure no import cycles.
