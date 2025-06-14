@@ -67,6 +67,7 @@ by `vyb`.
 | `init`         | Create `.vyb/metadata.yaml` in the project root            |
 | `update`       | Re-scan workspace, merge & (re)generate annotations        |
 | `remove`       | Delete `.vyb` completely                                   |
+| `version`      | Print binary version                                       |
 | `code`         | Implement `TODO(vyb)`s or the file passed as argument      |
 | `document`     | Generate / refresh `README.md` files                       |
 | `refine`       | Polish `SPEC.md` content                                   |

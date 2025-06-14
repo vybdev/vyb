@@ -9,6 +9,8 @@ subcommands, implemented using the Cobra library.
   metadata (metadata.yaml).
 - remove: Deletes all .vyb metadata from the current project root
   (or forcibly from the entire directory hierarchy using --force-root).
-- root: The root command that prints help if no subcommand is specified.
-- template: Registers specialized commands for AI-based tasks such
-  as 'refine', 'code', 'summarize', etc.
+- update: Updates the vyb project metadata.
+- version: Prints the vyb CLI version.
+- template-based commands: A dynamic set of commands for AI-based tasks
+  such as 'refine', 'code', 'document', etc., are registered from `.vyb`
+  template files.
