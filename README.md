@@ -106,6 +106,30 @@ Only one key is defined for now but the document might grow in the future
 (temperature defaults, retries, …).  The provider string is case-insensitive
 and must match one of the options returned by `vyb llm.SupportedProviders()`.
 
+### Workspace Scopes
+
+`vyb` operates with a clear understanding of the project structure, defined
+by several key directory and module scopes:
+
+*   **`root_directory`**: The base directory of the project, containing the
+    `.vyb` folder. All file paths are relative to this root.
+*   **`working_directory`**: The directory from which `vyb` is executed. It
+    can be any subdirectory within the `root_directory`.
+*   **`target_directory`**: For commands that accept a file or directory
+    argument, this is the directory containing the target. If no target is
+    specified, it defaults to the `working_directory`.
+*   **`root_module`**: Represents the entire project workspace as a single
+    top-level module.
+*   **`working_module`**: The module that contains the `working_directory`.
+*   **`target_module`**: The module that contains the `target_directory`.
+
+This scoping mechanism determines what context is sent to the LLM and what
+files are subject to modification. The LLM has visibility into the entire
+`working_module` and can modify any file within the `working_directory`, 
+and any of its sub-directories.
+For efficiency, only files directly under the `working_module` and public context
+from surrounding modules are included in requests by default.
+
 ### Model abstraction – family & size
 
 Instead of hard-coding provider-specific model identifiers in every template
