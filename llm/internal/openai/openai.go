@@ -83,8 +83,10 @@ func mapModel(fam config.ModelFamily, sz config.ModelSize) (string, error) {
 
 // GetModuleContext calls the LLM and returns a parsed ModuleSelfContainedContext
 // value using the model derived from family/size.
-func GetModuleContext(systemMessage, userMessage string) (*payload.ModuleSelfContainedContext, error) {
+func GetModuleContext(systemMessage string, request *payload.ModuleContextRequest) (*payload.ModuleSelfContainedContext, error) {
+	_ = request // TODO(vyb): serialize request payload
 	model := "o4-mini"
+	userMessage := ""
 	openaiResp, err := callOpenAI(systemMessage, userMessage, schema.GetModuleContextSchema(), model)
 	if err != nil {
 		var openAIErrResp openaiErrorResponse
@@ -92,7 +94,7 @@ func GetModuleContext(systemMessage, userMessage string) (*payload.ModuleSelfCon
 			if openAIErrResp.OpenAIError.Code == "rate_limit_exceeded" {
 				fmt.Printf("Rate limit exceeded, retrying after 30s\n")
 				<-time.After(30 * time.Second)
-				return GetModuleContext(systemMessage, userMessage)
+				return GetModuleContext(systemMessage, request)
 			}
 		}
 		return nil, err
@@ -106,12 +108,14 @@ func GetModuleContext(systemMessage, userMessage string) (*payload.ModuleSelfCon
 
 // GetWorkspaceChangeProposals sends the given messages to the OpenAI API and
 // returns the structured workspace change proposal.
-func GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, systemMessage, userMessage string) (*payload.WorkspaceChangeProposal, error) {
+func GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, systemMessage string, request *payload.WorkspaceChangeRequest) (*payload.WorkspaceChangeProposal, error) {
+	_ = request // TODO(vyb): serialize request payload
 	model, err := mapModel(fam, sz)
 	if err != nil {
 		return nil, err
 	}
 
+	userMessage := ""
 	openaiResp, err := callOpenAI(systemMessage, userMessage, schema.GetWorkspaceChangeProposalSchema(), model)
 	if err != nil {
 		return nil, err
@@ -224,7 +228,7 @@ func callOpenAI(systemMessage, userMessage string, structuredOutput schema.Struc
 			fmt.Printf("error creating OpenAI log file: %v\n", err)
 		}
 	} else {
-		fmt.Printf("error marshalling OpenAI log entry: %v\n", err)
+			fmt.Printf("error marshalling OpenAI log entry: %v\n", err)
 	}
 
 	return &openaiResp, nil
@@ -232,8 +236,10 @@ func callOpenAI(systemMessage, userMessage string, structuredOutput schema.Struc
 
 // GetModuleExternalContexts calls the LLM and returns a list of external
 // context strings – one per module.
-func GetModuleExternalContexts(systemMessage, userMessage string) (*payload.ModuleExternalContextResponse, error) {
+func GetModuleExternalContexts(systemMessage string, request *payload.ExternalContextsRequest) (*payload.ModuleExternalContextResponse, error) {
+	_ = request // TODO(vyb): serialize request payload
 	model := "o4-mini"
+	userMessage := ""
 	openaiResp, err := callOpenAI(systemMessage, userMessage, schema.GetModuleExternalContextSchema(), model)
 	if err != nil {
 		return nil, err

@@ -34,7 +34,8 @@ func mapModel(fam config.ModelFamily, sz config.ModelSize) (string, error) {
 //
 // The function mirrors the public surface exposed by the OpenAI provider so
 // callers can remain provider-agnostic.
-func GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, systemMessage, userMessage string) (*payload.WorkspaceChangeProposal, error) {
+func GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, systemMessage string, request *payload.WorkspaceChangeRequest) (*payload.WorkspaceChangeProposal, error) {
+	_ = request // TODO(vyb): serialize request payload
 	model, err := mapModel(fam, sz)
 	if err != nil {
 		return nil, err
@@ -46,6 +47,7 @@ func GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, sy
 
 	schema := gemschema.GetWorkspaceChangeProposalSchema()
 
+	userMessage := "placeholder"
 	resp, err := callGemini(systemMessage, userMessage, schema, model)
 	if err != nil {
 		return nil, err
@@ -64,7 +66,8 @@ func GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, sy
 	return &proposal, nil
 }
 
-func GetModuleContext(systemMessage, userMessage string) (*payload.ModuleSelfContainedContext, error) {
+func GetModuleContext(systemMessage string, request *payload.ModuleContextRequest) (*payload.ModuleSelfContainedContext, error) {
+	_ = request // TODO(vyb): serialize request payload
 	model, err := mapModel(config.ModelFamilyReasoning, config.ModelSizeSmall)
 	if err != nil {
 		return nil, err
@@ -72,6 +75,7 @@ func GetModuleContext(systemMessage, userMessage string) (*payload.ModuleSelfCon
 
 	schema := gemschema.GetModuleContextSchema()
 
+	userMessage := "placeholder"
 	resp, err := callGemini(systemMessage, userMessage, schema, model)
 	if err != nil {
 		return nil, err
@@ -90,7 +94,8 @@ func GetModuleContext(systemMessage, userMessage string) (*payload.ModuleSelfCon
 	return &ctx, nil
 }
 
-func GetModuleExternalContexts(systemMessage, userMessage string) (*payload.ModuleExternalContextResponse, error) {
+func GetModuleExternalContexts(systemMessage string, request *payload.ExternalContextsRequest) (*payload.ModuleExternalContextResponse, error) {
+	_ = request // TODO(vyb): serialize request payload
 	model, err := mapModel(config.ModelFamilyReasoning, config.ModelSizeSmall)
 	if err != nil {
 		return nil, err
@@ -98,6 +103,7 @@ func GetModuleExternalContexts(systemMessage, userMessage string) (*payload.Modu
 
 	schema := gemschema.GetModuleExternalContextSchema()
 
+	userMessage := "placeholder"
 	resp, err := callGemini(systemMessage, userMessage, schema, model)
 	if err != nil {
 		return nil, err

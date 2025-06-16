@@ -35,6 +35,68 @@ func BuildUserMessage(projectRoot fs.FS, filePaths []string) (string, error) {
 //  Data abstractions
 // ---------------------
 
+// --- Request Payloads ---
+
+// FileContent holds the path and content of a file.
+type FileContent struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
+}
+
+// WorkspaceChangeRequest contains all the necessary context and files for
+// proposing workspace changes.
+type WorkspaceChangeRequest struct {
+	// ModuleContexts provides contextual information from various related modules.
+	// The contexts should be ordered as they are intended to appear in the prompt.
+	ModuleContexts []ModuleContext `json:"module_contexts"`
+
+	// Files contains the content of files relevant to the task.
+	Files []FileContent `json:"files"`
+}
+
+// ModuleContext represents a piece of named context from a module.
+type ModuleContext struct {
+	Name string `json:"name"`
+	// Type can be "External", "Internal", or "Public".
+	Type    string `json:"type"`
+	Content string `json:"content"`
+}
+
+// SubModuleContext holds the public context for a submodule.
+type SubModuleContext struct {
+	Name    string `json:"name"`
+	Context string `json:"context"`
+}
+
+// ModuleContextRequest provides the necessary information to generate
+// the internal and public contexts for a single module.
+type ModuleContextRequest struct {
+	// TargetModuleFiles are the files within the module to be summarized.
+	TargetModuleFiles []FileContent `json:"target_module_files"`
+
+	// TargetModuleDirectories are the directories within the module.
+	TargetModuleDirectories []string `json:"target_module_directories"`
+
+	// SubModulesPublicContexts are the public contexts of immediate sub-modules.
+	SubModulesPublicContexts []SubModuleContext `json:"sub_modules_public_contexts"`
+}
+
+// ExternalContextsRequest contains information about a module hierarchy
+// needed to generate external contexts for each module.
+type ExternalContextsRequest struct {
+	Modules []ModuleInfoForExternalContext `json:"modules"`
+}
+
+// ModuleInfoForExternalContext holds the data for a single module.
+type ModuleInfoForExternalContext struct {
+	Name            string `json:"name"`
+	ParentName      string `json:"parent_name,omitempty"`
+	InternalContext string `json:"internal_context,omitempty"`
+	PublicContext   string `json:"public_context,omitempty"`
+}
+
+// --- Response Payloads ---
+
 // WorkspaceChangeProposal is a concrete description of proposed workspace
 // changes coming from the LLM.
 type WorkspaceChangeProposal struct {

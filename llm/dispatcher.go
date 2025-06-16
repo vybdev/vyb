@@ -18,25 +18,25 @@ import (
 // Additional methods should be appended here whenever new high-level
 // helpers are added to the llm façade.
 type provider interface {
-    GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, systemMessage, userMessage string) (*payload.WorkspaceChangeProposal, error)
-    GetModuleContext(systemMessage, userMessage string) (*payload.ModuleSelfContainedContext, error)
-    GetModuleExternalContexts(systemMessage, userMessage string) (*payload.ModuleExternalContextResponse, error)
+	GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, systemMessage string, request *payload.WorkspaceChangeRequest) (*payload.WorkspaceChangeProposal, error)
+	GetModuleContext(systemMessage string, request *payload.ModuleContextRequest) (*payload.ModuleSelfContainedContext, error)
+	GetModuleExternalContexts(systemMessage string, request *payload.ExternalContextsRequest) (*payload.ModuleExternalContextResponse, error)
 }
 
 type openAIProvider struct{}
 
 type geminiProvider struct{}
 
-func (*openAIProvider) GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, sysMsg, userMsg string) (*payload.WorkspaceChangeProposal, error) {
-    return openai.GetWorkspaceChangeProposals(fam, sz, sysMsg, userMsg)
+func (*openAIProvider) GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, sysMsg string, request *payload.WorkspaceChangeRequest) (*payload.WorkspaceChangeProposal, error) {
+	return openai.GetWorkspaceChangeProposals(fam, sz, sysMsg, request)
 }
 
-func (*openAIProvider) GetModuleContext(sysMsg, userMsg string) (*payload.ModuleSelfContainedContext, error) {
-    return openai.GetModuleContext(sysMsg, userMsg)
+func (*openAIProvider) GetModuleContext(sysMsg string, request *payload.ModuleContextRequest) (*payload.ModuleSelfContainedContext, error) {
+	return openai.GetModuleContext(sysMsg, request)
 }
 
-func (*openAIProvider) GetModuleExternalContexts(sysMsg, userMsg string) (*payload.ModuleExternalContextResponse, error) {
-    return openai.GetModuleExternalContexts(sysMsg, userMsg)
+func (*openAIProvider) GetModuleExternalContexts(sysMsg string, request *payload.ExternalContextsRequest) (*payload.ModuleExternalContextResponse, error) {
+	return openai.GetModuleExternalContexts(sysMsg, request)
 }
 
 // -----------------------------------------------------------------------------
@@ -54,43 +54,43 @@ func mapGeminiModel(fam config.ModelFamily, sz config.ModelSize) (string, error)
     }
 }
 
-func (*geminiProvider) GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, sysMsg, userMsg string) (*payload.WorkspaceChangeProposal, error) {
-    return gemini.GetWorkspaceChangeProposals(fam, sz, sysMsg, userMsg)
+func (*geminiProvider) GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, sysMsg string, request *payload.WorkspaceChangeRequest) (*payload.WorkspaceChangeProposal, error) {
+	return gemini.GetWorkspaceChangeProposals(fam, sz, sysMsg, request)
 }
 
-func (*geminiProvider) GetModuleContext(sysMsg, userMsg string) (*payload.ModuleSelfContainedContext, error) {
-    return gemini.GetModuleContext(sysMsg, userMsg)
+func (*geminiProvider) GetModuleContext(sysMsg string, request *payload.ModuleContextRequest) (*payload.ModuleSelfContainedContext, error) {
+	return gemini.GetModuleContext(sysMsg, request)
 }
 
-func (*geminiProvider) GetModuleExternalContexts(sysMsg, userMsg string) (*payload.ModuleExternalContextResponse, error) {
-    return gemini.GetModuleExternalContexts(sysMsg, userMsg)
+func (*geminiProvider) GetModuleExternalContexts(sysMsg string, request *payload.ExternalContextsRequest) (*payload.ModuleExternalContextResponse, error) {
+	return gemini.GetModuleExternalContexts(sysMsg, request)
 }
 
 // -----------------------------------------------------------------------------
 //  Public façade helpers remain unchanged (dispatcher section).
 // -----------------------------------------------------------------------------
 
-func GetModuleExternalContexts(cfg *config.Config, sysMsg, userMsg string) (*payload.ModuleExternalContextResponse, error) {
-    if provider, err := resolveProvider(cfg); err != nil {
-        return nil, err
-    } else {
-        return provider.GetModuleExternalContexts(sysMsg, userMsg)
-    }
+func GetModuleExternalContexts(cfg *config.Config, sysMsg string, request *payload.ExternalContextsRequest) (*payload.ModuleExternalContextResponse, error) {
+	if provider, err := resolveProvider(cfg); err != nil {
+		return nil, err
+	} else {
+		return provider.GetModuleExternalContexts(sysMsg, request)
+	}
 }
 
-func GetModuleContext(cfg *config.Config, sysMsg, userMsg string) (*payload.ModuleSelfContainedContext, error) {
-    if provider, err := resolveProvider(cfg); err != nil {
-        return nil, err
-    } else {
-        return provider.GetModuleContext(sysMsg, userMsg)
-    }
+func GetModuleContext(cfg *config.Config, sysMsg string, request *payload.ModuleContextRequest) (*payload.ModuleSelfContainedContext, error) {
+	if provider, err := resolveProvider(cfg); err != nil {
+		return nil, err
+	} else {
+		return provider.GetModuleContext(sysMsg, request)
+	}
 }
-func GetWorkspaceChangeProposals(cfg *config.Config, fam config.ModelFamily, sz config.ModelSize, sysMsg, userMsg string) (*payload.WorkspaceChangeProposal, error) {
-    if provider, err := resolveProvider(cfg); err != nil {
-        return nil, err
-    } else {
-        return provider.GetWorkspaceChangeProposals(fam, sz, sysMsg, userMsg)
-    }
+func GetWorkspaceChangeProposals(cfg *config.Config, fam config.ModelFamily, sz config.ModelSize, sysMsg string, request *payload.WorkspaceChangeRequest) (*payload.WorkspaceChangeProposal, error) {
+	if provider, err := resolveProvider(cfg); err != nil {
+		return nil, err
+	} else {
+		return provider.GetWorkspaceChangeProposals(fam, sz, sysMsg, request)
+	}
 }
 
 func resolveProvider(cfg *config.Config) (provider, error) {

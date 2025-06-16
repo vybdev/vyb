@@ -6,6 +6,11 @@ import (
     "github.com/vybdev/vyb/config"
 )
 
+// The following checks ensure that the provider implementations adhere to the
+// provider interface.
+var _ provider = (*openAIProvider)(nil)
+var _ provider = (*geminiProvider)(nil)
+
 // TestMapGeminiModel ensures that the (family,size) tuple is translated to
 // the correct concrete model identifier and that unsupported sizes are
 // properly rejected.

@@ -1,6 +1,8 @@
 package payload
 
 import (
+	"encoding/json"
+	"reflect"
 	"testing"
 	"testing/fstest"
 )
@@ -130,5 +132,71 @@ func TestBuildModuleContextUserMessage_Selectivity(t *testing.T) {
 
 	if gotC != expectedC {
 		t.Errorf("payload for C mismatch.\nGot:\n%s\nExpected:\n%s", gotC, expectedC)
+	}
+}
+
+func TestRequestPayloads_JSONMarshalling(t *testing.T) {
+	testcases := []struct {
+		name    string
+		payload interface{}
+		newInst func() interface{}
+	}{
+		{
+			name: "WorkspaceChangeRequest",
+			payload: &WorkspaceChangeRequest{
+				ModuleContexts: []ModuleContext{
+					{Name: "mod1", Type: "External", Content: "ctx1"},
+				},
+				Files: []FileContent{
+					{Path: "file1.go", Content: "package main"},
+				},
+			},
+			newInst: func() interface{} { return &WorkspaceChangeRequest{} },
+		},
+		{
+			name: "ModuleContextRequest",
+			payload: &ModuleContextRequest{
+				TargetModuleFiles: []FileContent{
+					{Path: "file1.go", Content: "package main"},
+				},
+				TargetModuleDirectories: []string{"dir1"},
+				SubModulesPublicContexts: []SubModuleContext{
+					{Name: "sub1", Context: "pub_ctx"},
+				},
+			},
+			newInst: func() interface{} { return &ModuleContextRequest{} },
+		},
+		{
+			name: "ExternalContextsRequest",
+			payload: &ExternalContextsRequest{
+				Modules: []ModuleInfoForExternalContext{
+					{
+						Name:            "mod1",
+						ParentName:      "",
+						InternalContext: "int_ctx",
+						PublicContext:   "pub_ctx",
+					},
+				},
+			},
+			newInst: func() interface{} { return &ExternalContextsRequest{} },
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			data, err := json.Marshal(tc.payload)
+			if err != nil {
+				t.Fatalf("json.Marshal() failed: %v", err)
+			}
+
+			unmarshaled := tc.newInst()
+			if err := json.Unmarshal(data, unmarshaled); err != nil {
+				t.Fatalf("json.Unmarshal() failed: %v", err)
+			}
+
+			if !reflect.DeepEqual(tc.payload, unmarshaled) {
+				t.Errorf("round-trip mismatch.\nGot:  %#v\nWant: %#v", unmarshaled, tc.payload)
+			}
+		})
 	}
 }

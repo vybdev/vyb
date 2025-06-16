@@ -38,7 +38,7 @@ func TestGetModuleContext(t *testing.T) {
 	os.Setenv("GEMINI_API_KEY", "x")
 	defer os.Unsetenv("GEMINI_API_KEY")
 
-	got, err := GetModuleContext("sys", "usr")
+	got, err := GetModuleContext("sys", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestGetModuleExternalContexts(t *testing.T) {
 	os.Setenv("GEMINI_API_KEY", "x")
 	defer os.Unsetenv("GEMINI_API_KEY")
 
-	got, err := GetModuleExternalContexts("sys", "usr")
+	got, err := GetModuleExternalContexts("sys", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
