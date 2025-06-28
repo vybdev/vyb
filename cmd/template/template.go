@@ -3,6 +3,7 @@ package template
 import (
 	"fmt"
 	"github.com/vybdev/vyb/config"
+	"github.com/vybdev/vyb/logging"
 	"os"
 	"path/filepath"
 	"strings"
@@ -168,9 +169,9 @@ func execute(cmd *cobra.Command, args []string, def *Definition) error {
 	}
 
 	if len(patchResult.ChangedModules) > 0 {
-		fmt.Println("Warning: metadata is stale. Run 'vyb update' to refresh.")
+		logging.Log.Warn("metadata is stale. Run 'vyb update' to refresh.")
 		for moduleName, change := range patchResult.ChangedModules {
-			fmt.Printf("  - Module %s changed by %.2f%%\n", moduleName, change.ChangePercentage())
+			logging.Log.Warnf("  - Module %s changed by %.2f%%\n", moduleName, change.ChangePercentage())
 		}
 	}
 
@@ -196,12 +197,12 @@ func execute(cmd *cobra.Command, args []string, def *Definition) error {
 		}
 	}
 
-	fmt.Printf("The following files will be included in the request:\n")
+	logging.Log.Infof("The following files will be included in the request:\n")
 	for _, file := range files {
 		if relTarget != nil && file == *relTarget {
-			fmt.Printf("  %s <-- TARGET\n", file)
+			logging.Log.Infof("  %s <-- TARGET\n", file)
 		} else {
-			fmt.Printf("  %s\n", file)
+			logging.Log.Infof("  %s\n", file)
 		}
 	}
 
@@ -264,11 +265,11 @@ func execute(cmd *cobra.Command, args []string, def *Definition) error {
 		return err
 	}
 
-	fmt.Printf("Change summary: %s\n\n", proposal.Summary)
-	fmt.Printf("Change description: %s\n\n", proposal.Description)
-	fmt.Printf("Changed files: \n")
+	logging.Log.Infof("Change summary: %s\n\n", proposal.Summary)
+	logging.Log.Infof("Change description: %s\n\n", proposal.Description)
+	logging.Log.Infof("Changed files: \n")
 	for _, file := range proposal.Proposals {
-		fmt.Printf("  %s -- delete? %v\n", file.FileName, file.Delete)
+		logging.Log.Infof("  %s -- delete? %v\n", file.FileName, file.Delete)
 	}
 
 	return nil
@@ -282,7 +283,7 @@ func applyProposals(absRoot string, proposals []payload.FileChangeProposal) erro
 			if err := os.Remove(absPath); err != nil && !os.IsNotExist(err) {
 				return fmt.Errorf("failed to delete file %s: %w", absPath, err)
 			}
-			fmt.Printf("Deleted file: %s\n", prop.FileName)
+			logging.Log.Infof("Deleted file: %s\n", prop.FileName)
 		} else {
 			dir := filepath.Dir(absPath)
 			if err := os.MkdirAll(dir, 0755); err != nil {
@@ -291,7 +292,7 @@ func applyProposals(absRoot string, proposals []payload.FileChangeProposal) erro
 			if err := os.WriteFile(absPath, []byte(prop.Content), 0644); err != nil {
 				return fmt.Errorf("failed to write to file %s: %w", absPath, err)
 			}
-			fmt.Printf("Modified file: %s\n", prop.FileName)
+			logging.Log.Infof("Modified file: %s\n", prop.FileName)
 		}
 	}
 	return nil

@@ -5,6 +5,7 @@ import (
 	"github.com/vybdev/vyb/config"
 	"github.com/vybdev/vyb/llm"
 	"github.com/vybdev/vyb/llm/payload"
+	"github.com/vybdev/vyb/logging"
 	"io/fs"
 	"strings"
 )
@@ -47,10 +48,10 @@ func annotate(cfg *config.Config, metadata *Metadata, sysfs fs.FS) error {
 	// Launch annotation tasks.
 	for _, m := range modules {
 		if m.Annotation != nil {
-			fmt.Printf("module %q already has an annotation, skipping...\n", m.Name)
+			logging.Log.Infof("module %q already has an annotation, skipping...\n", m.Name)
 			continue
 		}
-		fmt.Printf("module %q doesn't have annotation\n", m.Name)
+		logging.Log.Infof("module %q doesn't have annotation\n", m.Name)
 		// Capture m for the goroutine.
 		go func(mod *Module) {
 			// Wait for all submodules to complete.
@@ -136,7 +137,7 @@ func addOrUpdateSelfContainedContext(cfg *config.Config, m *Module, sysfs fs.FS)
 		SubModulesPublicContexts: subContexts,
 	}
 
-	fmt.Printf("annotating module %q\n", m.Name)
+	logging.Log.Infof("annotating module %q\n", m.Name)
 
 	// System prompt instructing the LLM to summarize code into JSON schema.
 	systemMessage := `You are a prompt engineer, structuring information about an application's code base 
@@ -165,7 +166,7 @@ Each type of context should be as descriptive as possible, using around one thou
 
 	context, err := llm.GetModuleContext(cfg, systemMessage, req)
 
-	fmt.Printf("  Got response for module %q\n", m.Name)
+	logging.Log.Infof("  Got response for module %q\n", m.Name)
 
 	if err != nil {
 		return fmt.Errorf("failed to call llm provider: %w", err)
@@ -177,17 +178,17 @@ Each type of context should be as descriptive as possible, using around one thou
 
 	if context.InternalContext != "" {
 		if m.Annotation.InternalContext != "" {
-			fmt.Printf("  Overriding field `InternalContext` of module %q.\n", m.Name)
+			logging.Log.Infof("  Overriding field `InternalContext` of module %q.\n", m.Name)
 		} else {
-			fmt.Printf("  Creating field `InternalContext` of module %q.\n", m.Name)
+			logging.Log.Infof("  Creating field `InternalContext` of module %q.\n", m.Name)
 		}
 		m.Annotation.InternalContext = context.InternalContext
 	}
 	if context.PublicContext != "" {
 		if m.Annotation.PublicContext != "" {
-			fmt.Printf("  Overriding field `PublicContext` of module %q.\n", m.Name)
+			logging.Log.Infof("  Overriding field `PublicContext` of module %q.\n", m.Name)
 		} else {
-			fmt.Printf("  Creating field `PublicContext` of module %q.\n", m.Name)
+			logging.Log.Infof("  Creating field `PublicContext` of module %q.\n", m.Name)
 		}
 		m.Annotation.PublicContext = context.PublicContext
 	}
@@ -297,7 +298,7 @@ Return your answer as JSON following the schema you have been provided.`
 			}
 			mod.Annotation.ExternalContext = ext.ExternalContext
 		} else {
-			fmt.Printf("  WARNING: module %q not found in module map\n", ext.Name)
+			logging.Log.Warnf("  WARNING: module %q not found in module map\n", ext.Name)
 		}
 	}
 

@@ -29,6 +29,13 @@ import (
 //nolint:revive // field name is intentionally simple
 type Config struct {
 	Provider string `yaml:"provider"`
+	Logging  `yaml:"logging"`
+}
+
+// Logging captures logging-specific settings.
+type Logging struct {
+	Level                string `yaml:"level"`
+	RequestResponseDebug bool   `yaml:"request-response-debug"`
 }
 
 // defaultProvider is used when no configuration file exists or it cannot
@@ -39,7 +46,13 @@ const defaultProvider = "openai"
 // Default returns a Config populated with hard-coded defaults. It should
 // be used whenever .vyb/config.yaml is missing.
 func Default() *Config {
-	return &Config{Provider: defaultProvider}
+	return &Config{
+		Provider: defaultProvider,
+		Logging: Logging{
+			Level:                "info",
+			RequestResponseDebug: false,
+		},
+	}
 }
 
 // Load reads .vyb/config.yaml located under projectRoot. When the file

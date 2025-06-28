@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"fmt"
 	"github.com/spf13/cobra"
+	"github.com/vybdev/vyb/logging"
 	"github.com/vybdev/vyb/workspace/project"
 	"os"
 )
@@ -20,8 +20,8 @@ func Update(_ *cobra.Command, _ []string) {
 	// for now, `vyb update` only works when executed on the root of the project
 	err := project.Update(".")
 	if err != nil {
-		fmt.Printf("Error creating metadata: %v\n", err)
+		logging.Log.Fatalf("Error creating metadata: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Println("Project metadata updated successfully.")
+	logging.Log.Info("Project metadata updated successfully.")
 }
