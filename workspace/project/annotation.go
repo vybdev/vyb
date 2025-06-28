@@ -102,50 +102,41 @@ func collectModulesInPostOrder(root *Module) []*Module {
 	return result
 }
 
-// buildModuleContextRequest converts a *Module hierarchy to a *payload.ModuleSelfContainedContextRequest tree.
-func buildModuleContextRequest(m *Module) *payload.ModuleSelfContainedContextRequest {
-	if m == nil {
-		return nil
-	}
-
-	// Collect file paths relative to this module (just the file names).
-	var paths []string
-	for _, f := range m.Files {
-		paths = append(paths, f.Name)
-	}
-
-	// Recursively process sub-modules.
-	var subs []*payload.ModuleSelfContainedContextRequest
-	for _, sm := range m.Modules {
-		subs = append(subs, buildModuleContextRequest(sm))
-	}
-
-	// For the root module (name == ".") we omit the ModuleSelfContainedContext so we don’t get a "# ." header.
-	var ctxPtr *payload.ModuleSelfContainedContext
-	//if m.Name != "." {
-	//  ctxPtr = &payload.ModuleSelfContainedContext{Name: m.Name}
-	//}
-
-	return &payload.ModuleSelfContainedContextRequest{
-		FilePaths:   paths,
-		Directories: m.Directories,
-		ModuleCtx:   ctxPtr,
-		SubModules:  subs,
-	}
-}
-
-// addOrUpdateSelfContainedContext calls OpenAI to construct the internal and public context of a given module.
+// addOrUpdateSelfContainedContext calls the LLM to construct the internal and public context of a given module.
 func addOrUpdateSelfContainedContext(cfg *config.Config, m *Module, sysfs fs.FS) error {
-	// Build the ModuleSelfContainedContextRequest tree starting from this module.
-	req := buildModuleContextRequest(m)
+	// Build the ModuleContextRequest for this module.
+	var targetFiles []payload.FileContent
+	for _, fileRef := range m.Files {
+		content, err := fs.ReadFile(sysfs, fileRef.Name)
+		if err != nil {
+			return fmt.Errorf("failed to read file %s: %w", fileRef.Name, err)
+		}
+		targetFiles = append(targetFiles, payload.FileContent{
+			Path:    fileRef.Name,
+			Content: string(content),
+		})
+	}
+
+	var subContexts []payload.ModuleContext
+	for _, subMod := range m.Modules {
+		var publicContext string
+		if subMod.Annotation != nil && subMod.Annotation.PublicContext != "" {
+			publicContext = subMod.Annotation.PublicContext
+		}
+		subContexts = append(subContexts, payload.ModuleContext{
+			Name:    subMod.Name,
+			Content: publicContext,
+		})
+	}
+
+	req := &payload.ModuleContextRequest{
+		TargetModuleName:         m.Name,
+		TargetModuleFiles:        targetFiles,
+		TargetModuleDirectories:  m.Directories,
+		SubModulesPublicContexts: subContexts,
+	}
 
 	fmt.Printf("annotating module %q\n", m.Name)
-
-	// Construct user message including the files for this module.
-	userMsg, err := payload.BuildModuleContextUserMessage(sysfs, req)
-	if err != nil {
-		return fmt.Errorf("failed to build user message: %w", err)
-	}
 
 	// System prompt instructing the LLM to summarize code into JSON schema.
 	systemMessage := `You are a prompt engineer, structuring information about an application's code base 
@@ -172,12 +163,12 @@ you included in the Internal Context, but also all the Public Context informatio
 
 Each type of context should be as descriptive as possible, using around one thousand LLM tokens, each.`
 
-	context, err := llm.GetModuleContext(cfg, systemMessage, userMsg)
+	context, err := llm.GetModuleContext(cfg, systemMessage, req)
 
 	fmt.Printf("  Got response for module %q\n", m.Name)
 
 	if err != nil {
-		return fmt.Errorf("failed to call openAI: %w", err)
+		return fmt.Errorf("failed to call llm provider: %w", err)
 	}
 
 	if m.Annotation == nil {
@@ -247,27 +238,32 @@ func addOrUpdateExternalContext(cfg *config.Config, m *Module) error {
 	}
 
 	// ------------------------------------------------------------
-	// 2. Build user-message containing internal & public context that the
+	// 2. Build request containing internal & public context that the
 	//    LLM will use to infer external context.
 	// ------------------------------------------------------------
-	var sb strings.Builder
+	var modulesForRequest []payload.ModuleInfoForExternalContext
 	for _, mod := range modules {
-		sb.WriteString(fmt.Sprintf("## Module: %s\n", mod.Name))
+		var parentName string
 		if mod.Parent != nil {
-			sb.WriteString(fmt.Sprintf("### Parent: %s\n", mod.Parent.Name))
+			parentName = mod.Parent.Name
 		}
+
+		var internalCtx, publicCtx string
 		if mod.Annotation != nil {
-			if mod.Annotation.InternalContext != "" {
-				sb.WriteString("### Internal Context\n")
-				sb.WriteString(mod.Annotation.InternalContext + "\n")
-			}
-			if mod.Annotation.PublicContext != "" {
-				sb.WriteString("### Public Context\n")
-				sb.WriteString(mod.Annotation.PublicContext + "\n")
-			}
+			internalCtx = mod.Annotation.InternalContext
+			publicCtx = mod.Annotation.PublicContext
 		}
+
+		modulesForRequest = append(modulesForRequest, payload.ModuleInfoForExternalContext{
+			Name:            mod.Name,
+			ParentName:      parentName,
+			InternalContext: internalCtx,
+			PublicContext:   publicCtx,
+		})
 	}
-	userMsg := sb.String()
+	request := &payload.ExternalContextsRequest{
+		Modules: modulesForRequest,
+	}
 
 	// ------------------------------------------------------------
 	// 3. Call LLM.
@@ -286,7 +282,7 @@ concise explanation of where the module lives in the hierarchy and what lives
 
 Return your answer as JSON following the schema you have been provided.`
 
-	resp, err := llm.GetModuleExternalContexts(cfg, sysPrompt, userMsg)
+	resp, err := llm.GetModuleExternalContexts(cfg, sysPrompt, request)
 	if err != nil {
 		return err
 	}

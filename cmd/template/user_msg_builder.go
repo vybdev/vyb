@@ -11,19 +11,21 @@ import (
 	"github.com/vybdev/vyb/workspace/project"
 )
 
-// buildExtendedUserMessage composes the user-message payload that will be
+// buildWorkspaceChangeRequest composes a payload.WorkspaceChangeRequest that will be
 // sent to the LLM. It prepends module context information — as dictated
-// by the specification — before the raw file contents. When metadata is
-// nil or when any contextual information is missing the function falls
-// back gracefully, emitting only what is available.
-func buildExtendedUserMessage(rootFS fs.FS, meta *project.Metadata, ec *context.ExecutionContext, filePaths []string) (string, error) {
-	// If metadata is missing we revert to the original behaviour – emit
-	// just the files.
-	if meta == nil || meta.Modules == nil {
-		return payload.BuildUserMessage(rootFS, filePaths)
+// by the specification — before the raw file contents. Both meta and
+// meta.Modules must be non-nil.
+func buildWorkspaceChangeRequest(rootFS fs.FS, meta *project.Metadata, ec *context.ExecutionContext, filePaths []string) (*payload.WorkspaceChangeRequest, error) {
+	if meta == nil {
+		return nil, fmt.Errorf("metadata cannot be nil")
+	}
+	if meta.Modules == nil {
+		return nil, fmt.Errorf("metadata.Modules cannot be nil")
 	}
 
-	// Helper to clean/normalise relative paths.
+	request := &payload.WorkspaceChangeRequest{}
+
+	// Helper to clean/normalise relative paths
 	rel := func(abs string) string {
 		if abs == "" {
 			return ""
@@ -35,42 +37,43 @@ func buildExtendedUserMessage(rootFS fs.FS, meta *project.Metadata, ec *context.
 	workingRel := rel(ec.WorkingDir)
 	targetRel := rel(ec.TargetDir)
 
+	request.TargetDirectory = targetRel
+
+	// Find modules (metadata is guaranteed to be valid)
 	workingMod := project.FindModule(meta.Modules, workingRel)
 	targetMod := project.FindModule(meta.Modules, targetRel)
 
 	if workingMod == nil || targetMod == nil {
-		return "", fmt.Errorf("failed to locate working and target modules")
+		return nil, fmt.Errorf("failed to locate working and target modules")
 	}
 
-	var sb strings.Builder
+	// Set target module information
+	request.TargetModule = targetMod.Name
 
-	// ------------------------------------------------------------
-	// 1. External context of working module.
-	// ------------------------------------------------------------
-	if ann := workingMod.Annotation; ann != nil && ann.ExternalContext != "" {
-		sb.WriteString(fmt.Sprintf("# Module: `%s`\n", workingMod.Name))
-		sb.WriteString("## External Context\n")
-		sb.WriteString(ann.ExternalContext + "\n")
-	}
-
-	// ------------------------------------------------------------
-	// 2. Internal context of modules between working and target.
-	// ------------------------------------------------------------
-	for m := targetMod.Parent; m != nil && m != workingMod; m = m.Parent {
-		if ann := m.Annotation; ann != nil && ann.InternalContext != "" {
-			sb.WriteString(fmt.Sprintf("# Module: `%s`\n", m.Name))
-			sb.WriteString("## Internal Context\n")
-			sb.WriteString(ann.InternalContext + "\n")
+	// Set target module context (combined internal and external context)
+	var targetContext strings.Builder
+	if ann := targetMod.Annotation; ann != nil {
+		if ann.ExternalContext != "" {
+			targetContext.WriteString("External Context: ")
+			targetContext.WriteString(ann.ExternalContext)
+			targetContext.WriteString("\n\n")
+		}
+		if ann.InternalContext != "" {
+			targetContext.WriteString("Internal Context: ")
+			targetContext.WriteString(ann.InternalContext)
 		}
 	}
 
-	// ------------------------------------------------------------
-	// 3. Public context of sibling modules along the path from the
-	//    parent of the target module up to (and including) the working
-	//    module. This replaces the previous logic that only considered
-	//    direct children of the working module.
-	// ------------------------------------------------------------
+	// Ensure TargetModuleContext is never empty
+	if targetContext.Len() == 0 {
+		targetContext.WriteString("No specific context available for this module.")
+	}
+	request.TargetModuleContext = targetContext.String()
 
+	var parentModuleContexts []payload.ModuleContext
+	var subModuleContexts []payload.ModuleContext
+
+	// Collect parent and sibling module contexts
 	isAncestor := func(a, b string) bool {
 		return a == b || (a != "." && strings.HasPrefix(b, a+"/"))
 	}
@@ -82,9 +85,10 @@ func buildExtendedUserMessage(rootFS fs.FS, meta *project.Metadata, ec *context.
 				continue
 			}
 			if ann := child.Annotation; ann != nil && ann.PublicContext != "" {
-				sb.WriteString(fmt.Sprintf("# Module: `%s`\n", child.Name))
-				sb.WriteString("## Public Context\n")
-				sb.WriteString(ann.PublicContext + "\n")
+				parentModuleContexts = append(parentModuleContexts, payload.ModuleContext{
+					Name:    child.Name,
+					Content: ann.PublicContext,
+				})
 			}
 		}
 		if ancestor == workingMod {
@@ -92,26 +96,32 @@ func buildExtendedUserMessage(rootFS fs.FS, meta *project.Metadata, ec *context.
 		}
 	}
 
-	// ------------------------------------------------------------
-	// 4. Public context of immediate sub-modules of target module.
-	// ------------------------------------------------------------
+	// Collect immediate sub-modules of target module
 	for _, child := range targetMod.Modules {
 		if ann := child.Annotation; ann != nil && ann.PublicContext != "" {
-			sb.WriteString(fmt.Sprintf("# Module: `%s`\n", child.Name))
-			sb.WriteString("## Public Context\n")
-			sb.WriteString(ann.PublicContext + "\n")
+			subModuleContexts = append(subModuleContexts, payload.ModuleContext{
+				Name:    child.Name,
+				Content: ann.PublicContext,
+			})
 		}
 	}
 
-	// ------------------------------------------------------------
-	// 5. Append file contents (only files from target module were
-	//    selected by selector.Select).
-	// ------------------------------------------------------------
-	filesMsg, err := payload.BuildUserMessage(rootFS, filePaths)
-	if err != nil {
-		return "", err
-	}
-	sb.WriteString(filesMsg)
+	request.ParentModuleContexts = parentModuleContexts
+	request.SubModuleContexts = subModuleContexts
 
-	return sb.String(), nil
+	// Append file contents
+	var files []payload.FileContent
+	for _, path := range filePaths {
+		content, err := fs.ReadFile(rootFS, path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read file %s: %w", path, err)
+		}
+		files = append(files, payload.FileContent{
+			Path:    path,
+			Content: string(content),
+		})
+	}
+	request.Files = files
+
+	return request, nil
 }

@@ -199,7 +199,7 @@ func execute(cmd *cobra.Command, args []string, def *Definition) error {
 		}
 	}
 
-	userMsg, err := buildExtendedUserMessage(rootFS, meta, ec, files)
+	userRequest, err := buildWorkspaceChangeRequest(rootFS, meta, ec, files)
 	if err != nil {
 		return err
 	}
@@ -217,7 +217,7 @@ func execute(cmd *cobra.Command, args []string, def *Definition) error {
 
 	systemMessage := rendered
 
-	proposal, err := llm.GetWorkspaceChangeProposals(cfg, def.Model.Family, def.Model.Size, systemMessage, userMsg)
+	proposal, err := llm.GetWorkspaceChangeProposals(cfg, def.Model.Family, def.Model.Size, systemMessage, userRequest)
 	if err != nil {
 		return err
 	}

@@ -6,11 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"github.com/vybdev/vyb/config"
-	gemschema "github.com/vybdev/vyb/llm/internal/gemini/internal/schema"
+	"github.com/vybdev/vyb/llm/internal/gemini/internal/schema"
 	"github.com/vybdev/vyb/llm/payload"
 	"io"
 	"net/http"
 	"os"
+	"strings"
 )
 
 // mapModel converts the (family,size) tuple into the concrete Gemini
@@ -34,7 +35,11 @@ func mapModel(fam config.ModelFamily, sz config.ModelSize) (string, error) {
 //
 // The function mirrors the public surface exposed by the OpenAI provider so
 // callers can remain provider-agnostic.
-func GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, systemMessage, userMessage string) (*payload.WorkspaceChangeProposal, error) {
+func GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, systemMessage string, request *payload.WorkspaceChangeRequest) (*payload.WorkspaceChangeProposal, error) {
+	userMessage, err := serializeWorkspaceChangeRequest(request)
+	if err != nil {
+		return nil, fmt.Errorf("gemini: failed to serialize workspace change request: %w", err)
+	}
 	model, err := mapModel(fam, sz)
 	if err != nil {
 		return nil, err
@@ -44,9 +49,7 @@ func GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, sy
 		return nil, errors.New("GEMINI_API_KEY is not set")
 	}
 
-	schema := gemschema.GetWorkspaceChangeProposalSchema()
-
-	resp, err := callGemini(systemMessage, userMessage, schema, model)
+	resp, err := callGemini([]string{systemMessage, userMessage}, schema.GetWorkspaceChangeProposalSchema(), model)
 	if err != nil {
 		return nil, err
 	}
@@ -64,15 +67,17 @@ func GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, sy
 	return &proposal, nil
 }
 
-func GetModuleContext(systemMessage, userMessage string) (*payload.ModuleSelfContainedContext, error) {
+func GetModuleContext(systemMessage string, request *payload.ModuleContextRequest) (*payload.ModuleSelfContainedContext, error) {
+	userMessage, err := serializeModuleContextRequest(request)
+	if err != nil {
+		return nil, fmt.Errorf("gemini: failed to serialize module context request: %w", err)
+	}
 	model, err := mapModel(config.ModelFamilyReasoning, config.ModelSizeSmall)
 	if err != nil {
 		return nil, err
 	}
 
-	schema := gemschema.GetModuleContextSchema()
-
-	resp, err := callGemini(systemMessage, userMessage, schema, model)
+	resp, err := callGemini([]string{systemMessage, userMessage}, schema.GetModuleContextSchema(), model)
 	if err != nil {
 		return nil, err
 	}
@@ -90,15 +95,17 @@ func GetModuleContext(systemMessage, userMessage string) (*payload.ModuleSelfCon
 	return &ctx, nil
 }
 
-func GetModuleExternalContexts(systemMessage, userMessage string) (*payload.ModuleExternalContextResponse, error) {
+func GetModuleExternalContexts(systemMessage string, request *payload.ExternalContextsRequest) (*payload.ModuleExternalContextResponse, error) {
+	userMessage, err := serializeExternalContextsRequest(request)
+	if err != nil {
+		return nil, fmt.Errorf("gemini: failed to serialize external contexts request: %w", err)
+	}
 	model, err := mapModel(config.ModelFamilyReasoning, config.ModelSizeSmall)
 	if err != nil {
 		return nil, err
 	}
 
-	schema := gemschema.GetModuleExternalContextSchema()
-
-	resp, err := callGemini(systemMessage, userMessage, schema, model)
+	resp, err := callGemini([]string{systemMessage, userMessage}, schema.GetModuleExternalContextSchema(), model)
 	if err != nil {
 		return nil, err
 	}
@@ -114,6 +121,192 @@ func GetModuleExternalContexts(systemMessage, userMessage string) (*payload.Modu
 		return nil, fmt.Errorf("gemini: failed to unmarshal ModuleExternalContextResponse: %w", err)
 	}
 	return &ext, nil
+}
+
+// -----------------------------------------------------------------------------
+//
+//	Request Serializers
+//
+// -----------------------------------------------------------------------------
+
+func serializeWorkspaceChangeRequest(request *payload.WorkspaceChangeRequest) (string, error) {
+	if request == nil {
+		return "", fmt.Errorf("WorkspaceChangeRequest must not be nil")
+	}
+	if request.TargetModule == "" {
+		return "", fmt.Errorf("TargetModule is required")
+	}
+	if request.TargetDirectory == "" {
+		return "", fmt.Errorf("TargetDirectory is required")
+	}
+
+	var sb strings.Builder
+
+	// Write target module information (these are now required)
+	sb.WriteString(fmt.Sprintf("# Target Module: `%s`\n", request.TargetModule))
+	sb.WriteString("## Target Module Context\n")
+	sb.WriteString(fmt.Sprintf("%s\n\n", request.TargetModuleContext))
+	sb.WriteString(fmt.Sprintf("## Target Directory: `%s`\n\n", request.TargetDirectory))
+
+	// Write parent module contexts
+	if len(request.ParentModuleContexts) > 0 {
+		sb.WriteString("# Parent Module Contexts\n")
+		for _, mc := range request.ParentModuleContexts {
+			ctx := &payload.ModuleSelfContainedContext{
+				Name:          mc.Name,
+				PublicContext: mc.Content,
+			}
+			writeModule(&sb, mc.Name, ctx)
+		}
+		sb.WriteString("\n")
+	}
+
+	// Write sub-module contexts
+	if len(request.SubModuleContexts) > 0 {
+		sb.WriteString("# Sub-Module Contexts\n")
+		for _, mc := range request.SubModuleContexts {
+			ctx := &payload.ModuleSelfContainedContext{
+				Name:          mc.Name,
+				PublicContext: mc.Content,
+			}
+			writeModule(&sb, mc.Name, ctx)
+		}
+		sb.WriteString("\n")
+	}
+
+	// Write files
+	if len(request.Files) > 0 {
+		sb.WriteString("# Files\n")
+		for _, f := range request.Files {
+			writeFile(&sb, f.Path, f.Content)
+		}
+	}
+
+	return sb.String(), nil
+}
+
+func serializeModuleContextRequest(request *payload.ModuleContextRequest) (string, error) {
+	if request == nil {
+		return "", fmt.Errorf("ModuleContextRequest must not be nil")
+	}
+
+	var sb strings.Builder
+	rootPrefix := request.TargetModuleName
+
+	// Only spend these tokens if we need to teach the LLM that a directory != module.
+	if len(request.TargetModuleDirectories) > 1 {
+		sb.WriteString(fmt.Sprintf("## Directories in module `%s`\n", rootPrefix))
+		sb.WriteString(fmt.Sprintf("The following is a list of directories that are part of the module `%s`\n.", rootPrefix))
+		sb.WriteString(fmt.Sprintf("These ARE NOT MODULES, they are directories within the module. When summarizing their file contents, include them in the summary of `%s`, do not make up modules for them.\n", rootPrefix))
+		for _, dir := range request.TargetModuleDirectories {
+			sb.WriteString(fmt.Sprintf("- %s\n", dir))
+		}
+	}
+
+	sb.WriteString(fmt.Sprintf("## Files in module `%s`\n", rootPrefix))
+	// Emit root-module files.
+	for _, file := range request.TargetModuleFiles {
+		writeFile(&sb, file.Path, file.Content)
+	}
+
+	// Emit public context of immediate sub-modules.
+	for _, sub := range request.SubModulesPublicContexts {
+		// We only expose the public context of immediate sub-modules.
+		if sub.Content == "" && sub.Name == "" {
+			continue
+		}
+
+		trimmedCtx := &payload.ModuleSelfContainedContext{
+			Name:          sub.Name,
+			PublicContext: sub.Content,
+		}
+		writeModule(&sb, trimmedCtx.Name, trimmedCtx)
+	}
+
+	return sb.String(), nil
+}
+
+func serializeExternalContextsRequest(request *payload.ExternalContextsRequest) (string, error) {
+	if request == nil {
+		return "", fmt.Errorf("ExternalContextsRequest must not be nil")
+	}
+
+	var sb strings.Builder
+
+	// Write each module with H1 headers
+	for _, module := range request.Modules {
+		if module.Name == "" {
+			continue
+		}
+		sb.WriteString(fmt.Sprintf("# Module: `%s`\n", module.Name))
+		if module.ParentName != "" {
+			sb.WriteString(fmt.Sprintf("Parent Module: `%s`\n\n", module.ParentName))
+		}
+		if module.InternalContext != "" {
+			sb.WriteString("## Internal Context\n")
+			sb.WriteString(fmt.Sprintf("%s\n\n", module.InternalContext))
+		}
+		if module.PublicContext != "" {
+			sb.WriteString("## Public Context\n")
+			sb.WriteString(fmt.Sprintf("%s\n\n", module.PublicContext))
+		}
+	}
+
+	return sb.String(), nil
+}
+
+func writeModule(sb *strings.Builder, path string, context *payload.ModuleSelfContainedContext) {
+	if sb == nil {
+		return
+	}
+	if path == "" && (context == nil || (context.ExternalContext == "" && context.InternalContext == "" && context.PublicContext == "")) {
+		return
+	}
+	sb.WriteString(fmt.Sprintf("# Module: `%s`\n", path))
+	if context != nil {
+		if context.ExternalContext != "" {
+			sb.WriteString("## External Context\n")
+			sb.WriteString(fmt.Sprintf("%s\n", context.ExternalContext))
+		}
+		if context.InternalContext != "" {
+			sb.WriteString("## Internal Context\n")
+			sb.WriteString(fmt.Sprintf("%s\n", context.InternalContext))
+		}
+		if context.PublicContext != "" {
+			sb.WriteString("## Public Context\n")
+			sb.WriteString(fmt.Sprintf("%s\n", context.PublicContext))
+		}
+	}
+}
+
+func writeFile(sb *strings.Builder, filepath, content string) {
+	if sb == nil {
+		return
+	}
+	lang := getLanguageFromFilename(filepath)
+	sb.WriteString(fmt.Sprintf("### %s\n", filepath))
+	sb.WriteString(fmt.Sprintf("```%s\n", lang))
+	sb.WriteString(content)
+	// Ensure a trailing newline before closing the code block.
+	if !strings.HasSuffix(content, "\n") {
+		sb.WriteString("\n")
+	}
+	sb.WriteString("```\n\n")
+}
+
+// getLanguageFromFilename returns a language identifier based on file extension.
+func getLanguageFromFilename(filename string) string {
+	if strings.HasSuffix(filename, ".go") {
+		return "go"
+	} else if strings.HasSuffix(filename, ".md") {
+		return "markdown"
+	} else if strings.HasSuffix(filename, ".json") {
+		return "json"
+	} else if strings.HasSuffix(filename, ".txt") {
+		return "text"
+	}
+	// Default: no language specified.
+	return ""
 }
 
 // -----------------------------------------------------------------------------
@@ -175,16 +368,28 @@ func (e geminiErrorResponse) Error() string {
 	return fmt.Sprintf("Gemini API error (%d %s): %s", e.Err.Code, e.Err.Status, e.Err.Message)
 }
 
-func buildRequest(systemMessage, userMessage string, schema interface{}) ([]byte, error) {
-	if userMessage == "" {
-		return nil, errors.New("gemini: user message must not be empty")
+func buildRequest(messages []string, schema interface{}) ([]byte, error) {
+	if len(messages) == 0 {
+		return nil, errors.New("gemini: messages cannot be empty")
+	}
+
+	// Create a part for each message
+	var parts []part
+	for _, msg := range messages {
+		if msg != "" {
+			parts = append(parts, part{Text: msg})
+		}
+	}
+
+	if len(parts) == 0 {
+		return nil, errors.New("gemini: all messages are empty")
 	}
 
 	r := requestPayload{
 		Contents: []content{
 			{
 				Role:  "user",
-				Parts: []part{{Text: systemMessage + "\n\n" + userMessage}},
+				Parts: parts,
 			},
 		},
 		GenerationConfig: generationConfig{
@@ -196,7 +401,7 @@ func buildRequest(systemMessage, userMessage string, schema interface{}) ([]byte
 	return json.Marshal(r)
 }
 
-func callGemini(systemMessage, userMessage string, schema interface{}, model string) (*geminiResponse, error) {
+func callGemini(messages []string, schema interface{}, model string) (*geminiResponse, error) {
 	apiKey := os.Getenv("GEMINI_API_KEY")
 	if apiKey == "" {
 		return nil, errors.New("GEMINI_API_KEY is not set")
@@ -207,7 +412,7 @@ func callGemini(systemMessage, userMessage string, schema interface{}, model str
 	}
 
 	// Build request body.
-	bodyBytes, err := buildRequest(systemMessage, userMessage, schema)
+	bodyBytes, err := buildRequest(messages, schema)
 	if err != nil {
 		return nil, err
 	}

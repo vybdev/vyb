@@ -2,10 +2,11 @@ package template
 
 import (
 	"fmt"
-	"strings"
+	"reflect"
 	"testing"
 	"testing/fstest"
 
+	"github.com/vybdev/vyb/llm/payload"
 	"github.com/vybdev/vyb/workspace/context"
 	"github.com/vybdev/vyb/workspace/project"
 )
@@ -18,7 +19,7 @@ func Test_buildExtendedUserMessage(t *testing.T) {
 			InternalContext: fmt.Sprintf("%s internal", s),
 		}
 	}
-	// Build minimal module tree: root -> work (w) -> tgt (w/child)
+	// Build minimal module tree: root -> work (w) -> mid -> tgt (w/child)
 	root := &project.Module{Name: "."}
 	work := &project.Module{Name: "w", Parent: root, Annotation: ann("W")}
 	mid := &project.Module{Name: "w/mid", Parent: work, Annotation: ann("Mid")}
@@ -49,31 +50,64 @@ func Test_buildExtendedUserMessage(t *testing.T) {
 		TargetDir:   "w/mid/child",
 	}
 
-	msg, err := buildExtendedUserMessage(mfs, meta, ec, []string{"w/mid/child/file.txt"})
+	req, err := buildWorkspaceChangeRequest(mfs, meta, ec, []string{"w/mid/child/file.txt"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	// Basic assertions – ensure expected contexts are present.
-	mustContain := []string{"W external", "Mid internal", "Sibling public", "Cousin public", "hello"}
-	for _, s := range mustContain {
-		if !strings.Contains(msg, s) {
-			t.Fatalf("expected message to contain %q", s)
-		}
+	expectedFiles := []payload.FileContent{
+		{Path: "w/mid/child/file.txt", Content: "hello"},
+	}
+	if !reflect.DeepEqual(req.Files, expectedFiles) {
+		t.Errorf("Files mismatch: got %+v, want %+v", req.Files, expectedFiles)
 	}
 
-	mustNotContain := []string{
-		"W public", "W internal",
-		"Mid public", "Mid external",
-		"Sibling internal", "Sibling external",
-		"Cousin internal", "Cousin external",
-		"Out public", "Out internal", "Out external",
-		"mid content", "sibling content", "w content", "cousin content", "out content",
+	// Verify target module information
+	if req.TargetModule != "w/mid/child" {
+		t.Errorf("TargetModule mismatch: got %q, want %q", req.TargetModule, "w/mid/child")
 	}
 
-	for _, s := range mustNotContain {
-		if strings.Contains(msg, s) {
-			t.Fatalf("should not include contexts for target module itself, got message:\n%s", msg)
-		}
+	if req.TargetDirectory != "w/mid/child" {
+		t.Errorf("TargetDirectory mismatch: got %q, want %q", req.TargetDirectory, "w/mid/child")
+	}
+
+	expectedParentContexts := []payload.ModuleContext{
+		{Name: "w/mid/sibling", Content: "Sibling public"},
+		{Name: "w/cousin", Content: "Cousin public"},
+	}
+
+	if !reflect.DeepEqual(req.ParentModuleContexts, expectedParentContexts) {
+		t.Errorf("ParentModuleContexts mismatch:\ngot:  %+v\nwant: %+v", req.ParentModuleContexts, expectedParentContexts)
+	}
+
+	// Should be empty since target module has no sub-modules
+	if len(req.SubModuleContexts) != 0 {
+		t.Errorf("SubModuleContexts should be empty, got: %+v", req.SubModuleContexts)
+	}
+}
+
+func Test_buildExtendedUserMessage_nilValidation(t *testing.T) {
+	mfs := fstest.MapFS{
+		"file.txt": &fstest.MapFile{Data: []byte("content")},
+	}
+
+	ec := &context.ExecutionContext{
+		ProjectRoot: ".",
+		WorkingDir:  ".",
+		TargetDir:   ".",
+	}
+
+	// Test nil metadata
+	_, err := buildWorkspaceChangeRequest(mfs, nil, ec, []string{"file.txt"})
+	if err == nil || err.Error() != "metadata cannot be nil" {
+		t.Errorf("Expected 'metadata cannot be nil' error, got: %v", err)
+	}
+
+	// Test nil modules
+	meta := &project.Metadata{Modules: nil}
+	_, err = buildWorkspaceChangeRequest(mfs, meta, ec, []string{"file.txt"})
+	if err == nil || err.Error() != "metadata.Modules cannot be nil" {
+		t.Errorf("Expected 'metadata.Modules cannot be nil' error, got: %v", err)
 	}
 }
