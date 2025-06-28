@@ -2,16 +2,18 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-
 	"github.com/spf13/cobra"
 	"github.com/vybdev/vyb/workspace/project"
+	"os"
 )
 
 var updateCmd = &cobra.Command{
 	Use:   "update",
-	Short: "Updates the vyb project metadata.",
-	Run:   Update,
+	Short: "Update the project's metadata",
+	Long: `This command updates the project's metadata.
+It will regenerate all annotations for the current project, preserving any
+existing ones that are still valid.`,
+	Run: Update,
 }
 
 func Update(_ *cobra.Command, _ []string) {

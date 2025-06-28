@@ -161,13 +161,19 @@ func execute(cmd *cobra.Command, args []string, def *Definition) error {
 		return err
 	}
 
-	// Validate that the module name sets are identical.
-	if !equalModuleNameSets(storedMeta.Modules, freshMeta.Modules) {
-		return fmt.Errorf("module hierarchy mismatch between stored metadata and filesystem snapshot – please run 'vyb update' first")
+	patchResult := storedMeta.Patch(freshMeta)
+
+	if len(patchResult.AddedModules) > 0 || len(patchResult.RemovedModules) > 0 {
+		return fmt.Errorf("module hierarchy has changed. Run 'vyb update' to refresh")
 	}
 
-	// Merge – keep annotations from storedMeta, replace structure from freshMeta.
-	storedMeta.Patch(freshMeta)
+	if len(patchResult.ChangedModules) > 0 {
+		fmt.Println("Warning: metadata is stale. Run 'vyb update' to refresh.")
+		for moduleName, change := range patchResult.ChangedModules {
+			fmt.Printf("  - Module %s changed by %.2f%%\n", moduleName, change.ChangePercentage())
+		}
+	}
+
 	meta := storedMeta
 
 	// ------------------------------------------------------------
@@ -307,32 +313,4 @@ func Register(rootCmd *cobra.Command) error {
 		rootCmd.AddCommand(cmd)
 	}
 	return nil
-}
-
-// collectModuleNames flattens a module tree into a set of names.
-func collectModuleNames(m *project.Module, set map[string]struct{}) {
-	if m == nil {
-		return
-	}
-	set[m.Name] = struct{}{}
-	for _, c := range m.Modules {
-		collectModuleNames(c, set)
-	}
-}
-
-// equalModuleNameSets returns true when both module trees enumerate exactly
-// the same set of module names.
-func equalModuleNameSets(a, b *project.Module) bool {
-	sa, sb := map[string]struct{}{}, map[string]struct{}{}
-	collectModuleNames(a, sa)
-	collectModuleNames(b, sb)
-	if len(sa) != len(sb) {
-		return false
-	}
-	for k := range sa {
-		if _, ok := sb[k]; !ok {
-			return false
-		}
-	}
-	return true
 }

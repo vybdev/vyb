@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/vybdev/vyb/config"
-	"github.com/vybdev/vyb/workspace/context"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -15,6 +14,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/vybdev/vyb/workspace/context"
 	"github.com/vybdev/vyb/workspace/selector"
 )
 
@@ -23,6 +23,87 @@ import (
 // the .vyb/ directory under the project root directory.
 type Metadata struct {
 	Modules *Module `yaml:"modules"`
+}
+
+// PatchResult summarizes the changes performed by the Patch method.
+type PatchResult struct {
+	ChangedModules map[string]ModuleChange
+	AddedModules   []string
+	RemovedModules []string
+}
+
+// ModuleChange details the changes for a single module.
+type ModuleChange struct {
+	PreviousTokenCount int64
+	CurrentTokenCount  int64
+}
+
+// ChangePercentage returns the percentage change in token count for a module.
+func (mc ModuleChange) ChangePercentage() float64 {
+	if mc.PreviousTokenCount == 0 {
+		return 100.0
+	}
+	return float64(mc.CurrentTokenCount-mc.PreviousTokenCount) / float64(mc.PreviousTokenCount) * 100.0
+}
+
+// Patch updates the receiver Metadata with the structure of the `other` Metadata,
+// while preserving annotations. It also validates that the module hierarchy is consistent
+// and returns a summary of the changes.
+func (m *Metadata) Patch(other *Metadata) *PatchResult {
+	result := &PatchResult{
+		ChangedModules: make(map[string]ModuleChange),
+	}
+
+	validateModuleSets(m.Modules, other.Modules, result)
+
+	patchModule(m.Modules, other.Modules, result)
+
+	m.Modules = other.Modules
+
+	return result
+}
+
+func validateModuleSets(a, b *Module, result *PatchResult) {
+	setA := make(map[string]struct{})
+	collectModuleNames(a, setA)
+	setB := make(map[string]struct{})
+	collectModuleNames(b, setB)
+
+	for name := range setA {
+		if _, ok := setB[name]; !ok {
+			result.RemovedModules = append(result.RemovedModules, name)
+		}
+	}
+
+	for name := range setB {
+		if _, ok := setA[name]; !ok {
+			result.AddedModules = append(result.AddedModules, name)
+		}
+	}
+}
+
+func patchModule(stored, fresh *Module, result *PatchResult) {
+	if stored == nil || fresh == nil {
+		return
+	}
+
+	if stored.MD5 != fresh.MD5 {
+		result.ChangedModules[stored.Name] = ModuleChange{
+			PreviousTokenCount: stored.TokenCount,
+			CurrentTokenCount:  fresh.TokenCount,
+		}
+	}
+
+	fresh.Annotation = stored.Annotation
+
+	for _, storedChild := range stored.Modules {
+		for _, freshChild := range fresh.Modules {
+			if storedChild.Name == freshChild.Name {
+				patchModule(storedChild, freshChild, result)
+				break
+			}
+		}
+	}
 }
 
 func newModule(name string, parent *Module, modules []*Module, files []*FileRef, annotation *Annotation) *Module {
@@ -371,4 +452,58 @@ func rebuildModule(old *Module, parent *Module) *Module {
 		children = append(children, rebuildModule(c, old))
 	}
 	return newModule(old.Name, parent, children, old.Files, old.Annotation)
+}
+
+// buildModuleFromFS constructs a hierarchy of Modules and Files for the given path entries.
+// It returns the Module representing the root folder.
+func buildModuleFromFS(fsys fs.FS, pathEntries []string) (*Module, error) {
+	// First, create a basic tree with empty token information so we can easily
+	// attach files to the correct folder hierarchy.
+	root := &Module{Name: ".", Modules: []*Module{}, Files: []*FileRef{}}
+
+	for _, entry := range pathEntries {
+		if entry == "" {
+			continue
+		}
+		info, err := fs.Stat(fsys, entry)
+		if err != nil {
+			return nil, fmt.Errorf("failed to stat path %q: %w", entry, err)
+		}
+		// Ignore directories from the incoming list – we only care about files.
+		if info.IsDir() {
+			continue
+		}
+
+		fileRef, err := newFileRefFromFS(fsys, entry)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build file object for %s: %w", entry, err)
+		}
+
+		parent := findOrCreateParentModule(root, entry)
+		parent.Files = append(parent.Files, fileRef)
+	}
+
+	// Collapse trivial single-child folders first.
+	collapseModules(root)
+
+	// At this point, we already have all the FileRefs and their token counts.
+	// Rebuild the tree using the newModule constructor, so module TokenCounts are computed.
+
+	rebuilt := rebuildModule(root, nil)
+
+	// Now using the tree with token counts, collapse any modules that have fewer tokens than minTokenCountPerModule.
+	collapseByTokens(rebuilt)
+
+	// Return a fresh copy of the tree with updated per-module token counts.
+	return rebuildModule(rebuilt, nil), nil
+}
+
+func collectModuleNames(m *Module, set map[string]struct{}) {
+	if m == nil {
+		return
+	}
+	set[m.Name] = struct{}{}
+	for _, c := range m.Modules {
+		collectModuleNames(c, set)
+	}
 }
