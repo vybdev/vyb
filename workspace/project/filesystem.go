@@ -12,50 +12,6 @@ import (
 	"github.com/tiktoken-go/tokenizer"
 )
 
-// buildModuleFromFS constructs a hierarchy of Modules and Files for the given path entries.
-// It returns the Module representing the root folder.
-func buildModuleFromFS(fsys fs.FS, pathEntries []string) (*Module, error) {
-	// First, create a basic tree with empty token information so we can easily
-	// attach files to the correct folder hierarchy.
-	root := &Module{Name: ".", Modules: []*Module{}, Files: []*FileRef{}}
-
-	for _, entry := range pathEntries {
-		if entry == "" {
-			continue
-		}
-		info, err := fs.Stat(fsys, entry)
-		if err != nil {
-			return nil, fmt.Errorf("failed to stat path %q: %w", entry, err)
-		}
-		// Ignore directories from the incoming list – we only care about files.
-		if info.IsDir() {
-			continue
-		}
-
-		fileRef, err := newFileRefFromFS(fsys, entry)
-		if err != nil {
-			return nil, fmt.Errorf("failed to build file object for %s: %w", entry, err)
-		}
-
-		parent := findOrCreateParentModule(root, entry)
-		parent.Files = append(parent.Files, fileRef)
-	}
-
-	// Collapse trivial single-child folders first.
-	collapseModules(root)
-
-	// At this point, we already have all the FileRefs and their token counts.
-	// Rebuild the tree using the newModule constructor, so module TokenCounts are computed.
-
-	rebuilt := rebuildModule(root, nil)
-
-	// Now using the tree with token counts, collapse any modules that have fewer tokens than minTokenCountPerModule.
-	collapseByTokens(rebuilt)
-
-	// Return a fresh copy of the tree with updated per-module token counts.
-	return rebuildModule(rebuilt, nil), nil
-}
-
 // newFileRefFromFS creates a *project.FileRef with computed last-modified time, token count, and MD5.
 func newFileRefFromFS(fsys fs.FS, relPath string) (*FileRef, error) {
 	info, err := fs.Stat(fsys, relPath)

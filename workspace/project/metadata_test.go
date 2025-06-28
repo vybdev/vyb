@@ -1,118 +1,125 @@
 package project
 
 import (
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/assert"
 	"testing"
-	"testing/fstest"
-	"time"
 )
 
-func Test_buildMetadata(t *testing.T) {
-	memFS := fstest.MapFS{
-		"folderA/file1.txt":        {Data: []byte("this is file1"), ModTime: time.Now()},
-		"folderA/folderB/file2.md": {Data: []byte("this is file2"), ModTime: time.Now()},
-		"folderC/foo.go":           {Data: []byte("package main\nfunc main(){}"), ModTime: time.Now()},
-		".git/ignored":             {Data: []byte("should be excluded")},
-		"go.sum":                   {Data: []byte("should be excluded")},
+func TestMetadata_Patch(t *testing.T) {
+	type testCase struct {
+		name              string
+		stored            *Metadata
+		fresh             *Metadata
+		expected          *PatchResult
+		expectedErr       string
+		expectedModules   []string
+		expectedFiles     []string
+		expectedRemoved   []string
+		expectedAdded     []string
+		expectedChanged   []string
+		expectedUnchanged []string
 	}
 
-	meta, err := buildMetadata(memFS)
-	if err != nil {
-		t.Fatalf("buildMetadata returned error: %v", err)
-	}
-
-	if meta == nil {
-		t.Fatal("buildMetadata returned nil metadata")
-	}
-
-	want := &Metadata{
-		Modules: &Module{
-			Name: ".",
-			Modules: []*Module{
-				{
-					Name: "folderA",
+	testCases := []testCase{
+		{
+			name: "should detect no changes",
+			stored: &Metadata{
+				Modules: &Module{
+					Name: ".",
+					MD5:  "abc",
+				},
+			},
+			fresh: &Metadata{
+				Modules: &Module{
+					Name: ".",
+					MD5:  "abc",
+				},
+			},
+			expected: &PatchResult{
+				ChangedModules: map[string]ModuleChange{},
+			},
+		},
+		{
+			name: "should detect module changes",
+			stored: &Metadata{
+				Modules: &Module{
+					Name:       ".",
+					MD5:        "abc",
+					TokenCount: 100,
+				},
+			},
+			fresh: &Metadata{
+				Modules: &Module{
+					Name:       ".",
+					MD5:        "def",
+					TokenCount: 200,
+				},
+			},
+			expected: &PatchResult{
+				ChangedModules: map[string]ModuleChange{
+					".": {
+						PreviousTokenCount: 100,
+						CurrentTokenCount:  200,
+					},
+				},
+			},
+		},
+		{
+			name: "should detect added modules",
+			stored: &Metadata{
+				Modules: &Module{
+					Name: ".",
+					MD5:  "abc",
+				},
+			},
+			fresh: &Metadata{
+				Modules: &Module{
+					Name: ".",
+					MD5:  "abc",
 					Modules: []*Module{
 						{
-							Name: "folderA/folderB",
-							Files: []*FileRef{
-								{
-									Name: "folderA/folderB/file2.md",
-								},
-							},
-							Directories: []string{"folderA/folderB"},
+							Name: "new",
+							MD5:  "def",
 						},
 					},
-					Files: []*FileRef{
-						{
-							Name: "folderA/file1.txt",
-						},
-					},
-					Directories: []string{"folderA"},
 				},
-				{
-					Name: "folderC",
-					Files: []*FileRef{
+			},
+			expected: &PatchResult{
+				ChangedModules: map[string]ModuleChange{},
+				AddedModules:   []string{"new"},
+			},
+		},
+		{
+			name: "should detect removed modules",
+			stored: &Metadata{
+				Modules: &Module{
+					Name: ".",
+					MD5:  "abc",
+					Modules: []*Module{
 						{
-							Name: "folderC/foo.go",
+							Name: "removed",
+							MD5:  "def",
 						},
 					},
-					Directories: []string{"folderC"},
 				},
+			},
+			fresh: &Metadata{
+				Modules: &Module{
+					Name: ".",
+					MD5:  "abc",
+				},
+			},
+			expected: &PatchResult{
+				ChangedModules: map[string]ModuleChange{},
+				RemovedModules: []string{"removed"},
 			},
 		},
 	}
 
-	opts := []cmp.Option{
-		// ignore MD5 on both FileRef and Module for structural comparison
-		cmpopts.IgnoreFields(FileRef{}, "LastModified", "MD5", "TokenCount"),
-		cmpopts.IgnoreFields(Module{}, "MD5", "TokenCount", "Parent"),
-		cmpopts.IgnoreUnexported(Module{}),
-		cmpopts.EquateEmpty(),
-		cmpopts.SortSlices(func(a, b *Module) bool { return a.Name < b.Name }),
-		cmpopts.SortSlices(func(a, b *FileRef) bool { return a.Name < b.Name }),
-	}
-
-	if diff := cmp.Diff(want, meta, opts...); diff != "" {
-		t.Errorf("metadata structure mismatch (-want +got):\n%s", diff)
-	}
-
-	// Validate files and modules have non-empty fields/hashes.
-	checkNonEmptyFields(t, meta.Modules)
-	checkModuleHashes(t, meta.Modules)
-}
-
-// checkNonEmptyFields validates that LastModified, MD5, and TokenCount are not empty on all files.
-func checkNonEmptyFields(t *testing.T, mod *Module) {
-	if mod == nil {
-		return
-	}
-	for _, f := range mod.Files {
-		if f.MD5 == "" {
-			t.Errorf("F1le %s has empty MD5", f.Name)
-		}
-		if f.LastModified.IsZero() {
-			t.Errorf("F1le %s has zero LastModified", f.Name)
-		}
-		if f.TokenCount < 0 {
-			t.Errorf("F1le %s has negative TokenCount %d", f.Name, f.TokenCount)
-		}
-	}
-	for _, child := range mod.Modules {
-		checkNonEmptyFields(t, child)
-	}
-}
-
-// checkModuleHashes walks the module tree ensuring every module has a non-empty
-// MD5 value.
-func checkModuleHashes(t *testing.T, m *Module) {
-	if m == nil {
-		return
-	}
-	if m.MD5 == "" {
-		t.Errorf("Module %s has empty MD5", m.Name)
-	}
-	for _, sub := range m.Modules {
-		checkModuleHashes(t, sub)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := tc.stored.Patch(tc.fresh)
+			assert.Equal(t, tc.expected, result)
+		})
 	}
 }
