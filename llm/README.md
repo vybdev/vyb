@@ -40,13 +40,11 @@ debugging.
 
 ### `llm/payload`
 
-Pure data & helper utilities:
+Pure data structures for LLM communication:
 
-* `BuildUserMessage` – turns a list of files into a Markdown payload.
-* `BuildModuleContextUserMessage` – embeds annotations into the payload
-  according to precise inclusion rules.
-* Go structs mirroring every JSON schema (WorkspaceChangeProposal,
-  ModuleSelfContainedContext, …).
+* Go structs for request payloads (WorkspaceChangeRequest, ModuleContextRequest, ExternalContextsRequest)
+* Go structs for response payloads (WorkspaceChangeProposal, ModuleSelfContainedContext, ModuleExternalContextResponse)
+* All structs support JSON marshalling/unmarshalling for LLM interactions
 
 ## JSON Schema enforcement
 

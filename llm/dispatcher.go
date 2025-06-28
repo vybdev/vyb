@@ -1,13 +1,13 @@
 package llm
 
 import (
-    "fmt"
-    "strings"
+	"fmt"
+	"strings"
 
-    "github.com/vybdev/vyb/config"
-    "github.com/vybdev/vyb/llm/internal/gemini"
-    "github.com/vybdev/vyb/llm/internal/openai"
-    "github.com/vybdev/vyb/llm/payload"
+	"github.com/vybdev/vyb/config"
+	"github.com/vybdev/vyb/llm/internal/gemini"
+	"github.com/vybdev/vyb/llm/internal/openai"
+	"github.com/vybdev/vyb/llm/payload"
 )
 
 // provider captures the common operations expected from any LLM backend.
@@ -27,6 +27,8 @@ type openAIProvider struct{}
 
 type geminiProvider struct{}
 
+type unknownProvider struct{}
+
 func (*openAIProvider) GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, sysMsg string, request *payload.WorkspaceChangeRequest) (*payload.WorkspaceChangeProposal, error) {
 	return openai.GetWorkspaceChangeProposals(fam, sz, sysMsg, request)
 }
@@ -40,18 +42,18 @@ func (*openAIProvider) GetModuleExternalContexts(sysMsg string, request *payload
 }
 
 // -----------------------------------------------------------------------------
-//  Gemini provider implementation – WorkspaceChangeProposals hooked up
+//  Gemini provider implementation
 // -----------------------------------------------------------------------------
 
 func mapGeminiModel(fam config.ModelFamily, sz config.ModelSize) (string, error) {
-    switch sz {
-    case config.ModelSizeSmall:
-        return "gemini-2.5-flash-preview-05-20", nil
-    case config.ModelSizeLarge:
-        return "gemini-2.5-pro-preview-06-05", nil
-    default:
-        return "", fmt.Errorf("gemini: unsupported model size %s", sz)
-    }
+	switch sz {
+	case config.ModelSizeSmall:
+		return "gemini-2.5-flash-preview-05-20", nil
+	case config.ModelSizeLarge:
+		return "gemini-2.5-pro-preview-06-05", nil
+	default:
+		return "", fmt.Errorf("gemini: unsupported model size %s", sz)
+	}
 }
 
 func (*geminiProvider) GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, sysMsg string, request *payload.WorkspaceChangeRequest) (*payload.WorkspaceChangeProposal, error) {
@@ -67,39 +69,46 @@ func (*geminiProvider) GetModuleExternalContexts(sysMsg string, request *payload
 }
 
 // -----------------------------------------------------------------------------
+//	Unknown Provider is a throwing stub
+// -----------------------------------------------------------------------------
+
+func (*unknownProvider) GetWorkspaceChangeProposals(_ config.ModelFamily, _ config.ModelSize, _ string, _ *payload.WorkspaceChangeRequest) (*payload.WorkspaceChangeProposal, error) {
+	return nil, fmt.Errorf("unknown provider")
+}
+
+func (*unknownProvider) GetModuleContext(_ string, _ *payload.ModuleContextRequest) (*payload.ModuleSelfContainedContext, error) {
+	return nil, fmt.Errorf("unknown provider")
+}
+
+func (*unknownProvider) GetModuleExternalContexts(_ string, _ *payload.ExternalContextsRequest) (*payload.ModuleExternalContextResponse, error) {
+	return nil, fmt.Errorf("unknown provider")
+}
+
+// -----------------------------------------------------------------------------
 //  Public façade helpers remain unchanged (dispatcher section).
 // -----------------------------------------------------------------------------
 
 func GetModuleExternalContexts(cfg *config.Config, sysMsg string, request *payload.ExternalContextsRequest) (*payload.ModuleExternalContextResponse, error) {
-	if provider, err := resolveProvider(cfg); err != nil {
-		return nil, err
-	} else {
-		return provider.GetModuleExternalContexts(sysMsg, request)
-	}
+	return resolveProvider(cfg).GetModuleExternalContexts(sysMsg, request)
 }
 
 func GetModuleContext(cfg *config.Config, sysMsg string, request *payload.ModuleContextRequest) (*payload.ModuleSelfContainedContext, error) {
-	if provider, err := resolveProvider(cfg); err != nil {
-		return nil, err
-	} else {
-		return provider.GetModuleContext(sysMsg, request)
-	}
+	return resolveProvider(cfg).GetModuleContext(sysMsg, request)
+
 }
 func GetWorkspaceChangeProposals(cfg *config.Config, fam config.ModelFamily, sz config.ModelSize, sysMsg string, request *payload.WorkspaceChangeRequest) (*payload.WorkspaceChangeProposal, error) {
-	if provider, err := resolveProvider(cfg); err != nil {
-		return nil, err
-	} else {
-		return provider.GetWorkspaceChangeProposals(fam, sz, sysMsg, request)
-	}
+	return resolveProvider(cfg).GetWorkspaceChangeProposals(fam, sz, sysMsg, request)
 }
 
-func resolveProvider(cfg *config.Config) (provider, error) {
-    switch strings.ToLower(cfg.Provider) {
-    case "openai":
-        return &openAIProvider{}, nil
-    case "gemini":
-        return &geminiProvider{}, nil
-    default:
-        return nil, fmt.Errorf("unknown provider: %s", cfg.Provider)
-    }
+// resolveProvider resolves the value of cfg.Provider to one of the known providers.
+// Returns a throwing stub if it can't map the value to any known provider.
+func resolveProvider(cfg *config.Config) provider {
+	switch strings.ToLower(cfg.Provider) {
+	case "openai":
+		return &openAIProvider{}
+	case "gemini":
+		return &geminiProvider{}
+	default:
+		return &unknownProvider{}
+	}
 }

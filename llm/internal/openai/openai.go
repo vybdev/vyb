@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/vybdev/vyb/llm/payload"
 	"time"
@@ -84,9 +85,11 @@ func mapModel(fam config.ModelFamily, sz config.ModelSize) (string, error) {
 // GetModuleContext calls the LLM and returns a parsed ModuleSelfContainedContext
 // value using the model derived from family/size.
 func GetModuleContext(systemMessage string, request *payload.ModuleContextRequest) (*payload.ModuleSelfContainedContext, error) {
-	_ = request // TODO(vyb): serialize request payload
+	userMessage, err := serializeModuleContextRequest(request)
+	if err != nil {
+		return nil, fmt.Errorf("openai: failed to serialize module context request: %w", err)
+	}
 	model := "o4-mini"
-	userMessage := ""
 	openaiResp, err := callOpenAI(systemMessage, userMessage, schema.GetModuleContextSchema(), model)
 	if err != nil {
 		var openAIErrResp openaiErrorResponse
@@ -109,13 +112,15 @@ func GetModuleContext(systemMessage string, request *payload.ModuleContextReques
 // GetWorkspaceChangeProposals sends the given messages to the OpenAI API and
 // returns the structured workspace change proposal.
 func GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, systemMessage string, request *payload.WorkspaceChangeRequest) (*payload.WorkspaceChangeProposal, error) {
-	_ = request // TODO(vyb): serialize request payload
+	userMessage, err := serializeWorkspaceChangeRequest(request)
+	if err != nil {
+		return nil, fmt.Errorf("openai: failed to serialize workspace change request: %w", err)
+	}
 	model, err := mapModel(fam, sz)
 	if err != nil {
 		return nil, err
 	}
 
-	userMessage := ""
 	openaiResp, err := callOpenAI(systemMessage, userMessage, schema.GetWorkspaceChangeProposalSchema(), model)
 	if err != nil {
 		return nil, err
@@ -127,6 +132,9 @@ func GetWorkspaceChangeProposals(fam config.ModelFamily, sz config.ModelSize, sy
 	}
 	return &proposal, nil
 }
+
+// NOTE: baseEndpoint is a var (not const) to allow test overrides.
+var baseEndpoint = "https://api.openai.com/v1/chat/completions"
 
 // callOpenAI sends a request to OpenAI, returns the parsed response, and logs
 // the request/response pair to a uniquely-named JSON file in the OS temp dir.
@@ -160,7 +168,7 @@ func callOpenAI(systemMessage, userMessage string, structuredOutput schema.Struc
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(reqBytes))
+	req, err := http.NewRequest("POST", baseEndpoint, bytes.NewBuffer(reqBytes))
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +236,7 @@ func callOpenAI(systemMessage, userMessage string, structuredOutput schema.Struc
 			fmt.Printf("error creating OpenAI log file: %v\n", err)
 		}
 	} else {
-			fmt.Printf("error marshalling OpenAI log entry: %v\n", err)
+		fmt.Printf("error marshalling OpenAI log entry: %v\n", err)
 	}
 
 	return &openaiResp, nil
@@ -237,9 +245,11 @@ func callOpenAI(systemMessage, userMessage string, structuredOutput schema.Struc
 // GetModuleExternalContexts calls the LLM and returns a list of external
 // context strings – one per module.
 func GetModuleExternalContexts(systemMessage string, request *payload.ExternalContextsRequest) (*payload.ModuleExternalContextResponse, error) {
-	_ = request // TODO(vyb): serialize request payload
+	userMessage, err := serializeExternalContextsRequest(request)
+	if err != nil {
+		return nil, fmt.Errorf("openai: failed to serialize external contexts request: %w", err)
+	}
 	model := "o4-mini"
-	userMessage := ""
 	openaiResp, err := callOpenAI(systemMessage, userMessage, schema.GetModuleExternalContextSchema(), model)
 	if err != nil {
 		return nil, err
@@ -250,4 +260,190 @@ func GetModuleExternalContexts(systemMessage string, request *payload.ExternalCo
 		return nil, err
 	}
 	return &resp, nil
+}
+
+// -----------------------------------------------------------------------------
+//
+//	Request Serializers
+//
+// -----------------------------------------------------------------------------
+
+func serializeWorkspaceChangeRequest(request *payload.WorkspaceChangeRequest) (string, error) {
+	if request == nil {
+		return "", fmt.Errorf("WorkspaceChangeRequest must not be nil")
+	}
+	if request.TargetModule == "" {
+		return "", fmt.Errorf("TargetModule is required")
+	}
+	if request.TargetDirectory == "" {
+		return "", fmt.Errorf("TargetDirectory is required")
+	}
+	
+	var sb strings.Builder
+	
+	// Write target module information (these are now required)
+	sb.WriteString(fmt.Sprintf("# Target Module: `%s`\n", request.TargetModule))
+	sb.WriteString("## Target Module Context\n")
+	sb.WriteString(fmt.Sprintf("%s\n\n", request.TargetModuleContext))
+	sb.WriteString(fmt.Sprintf("## Target Directory: `%s`\n\n", request.TargetDirectory))
+	
+	// Write parent module contexts
+	if len(request.ParentModuleContexts) > 0 {
+		sb.WriteString("# Parent Module Contexts\n")
+		for _, mc := range request.ParentModuleContexts {
+			ctx := &payload.ModuleSelfContainedContext{
+				Name: mc.Name,
+				PublicContext: mc.Content,
+			}
+			writeModule(&sb, mc.Name, ctx)
+		}
+		sb.WriteString("\n")
+	}
+	
+	// Write sub-module contexts
+	if len(request.SubModuleContexts) > 0 {
+		sb.WriteString("# Sub-Module Contexts\n")
+		for _, mc := range request.SubModuleContexts {
+			ctx := &payload.ModuleSelfContainedContext{
+				Name: mc.Name,
+				PublicContext: mc.Content,
+			}
+			writeModule(&sb, mc.Name, ctx)
+		}
+		sb.WriteString("\n")
+	}
+
+	// Write files
+	if len(request.Files) > 0 {
+		sb.WriteString("# Files\n")
+		for _, f := range request.Files {
+			writeFile(&sb, f.Path, f.Content)
+		}
+	}
+
+	return sb.String(), nil
+}
+
+func serializeModuleContextRequest(request *payload.ModuleContextRequest) (string, error) {
+	if request == nil {
+		return "", fmt.Errorf("ModuleContextRequest must not be nil")
+	}
+
+	var sb strings.Builder
+	rootPrefix := request.TargetModuleName
+
+	// Only spend these tokens if we need to teach the LLM that a directory != module.
+	if len(request.TargetModuleDirectories) > 1 {
+		sb.WriteString(fmt.Sprintf("## Directories in module `%s`\n", rootPrefix))
+		sb.WriteString(fmt.Sprintf("The following is a list of directories that are part of the module `%s`\n.", rootPrefix))
+		sb.WriteString(fmt.Sprintf("These ARE NOT MODULES, they are directories within the module. When summarizing their file contents, include them in the summary of `%s`, do not make up modules for them.\n", rootPrefix))
+		for _, dir := range request.TargetModuleDirectories {
+			sb.WriteString(fmt.Sprintf("- %s\n", dir))
+		}
+	}
+
+	sb.WriteString(fmt.Sprintf("## Files in module `%s`\n", rootPrefix))
+	// Emit root-module files.
+	for _, file := range request.TargetModuleFiles {
+		writeFile(&sb, file.Path, file.Content)
+	}
+
+	// Emit public context of immediate sub-modules.
+	for _, sub := range request.SubModulesPublicContexts {
+		// We only expose the public context of immediate sub-modules.
+		if sub.Content == "" && sub.Name == "" {
+			continue
+		}
+
+		trimmedCtx := &payload.ModuleSelfContainedContext{
+			Name:          sub.Name,
+			PublicContext: sub.Content,
+		}
+		writeModule(&sb, trimmedCtx.Name, trimmedCtx)
+	}
+
+	return sb.String(), nil
+}
+
+func serializeExternalContextsRequest(request *payload.ExternalContextsRequest) (string, error) {
+	if request == nil {
+		return "", fmt.Errorf("ExternalContextsRequest must not be nil")
+	}
+
+	var sb strings.Builder
+
+	// Write each module with H1 headers
+	for _, module := range request.Modules {
+		if module.Name == "" {
+			continue
+		}
+		sb.WriteString(fmt.Sprintf("# Module: `%s`\n", module.Name))
+		if module.ParentName != "" {
+			sb.WriteString(fmt.Sprintf("Parent Module: `%s`\n\n", module.ParentName))
+		}
+		if module.InternalContext != "" {
+			sb.WriteString("## Internal Context\n")
+			sb.WriteString(fmt.Sprintf("%s\n\n", module.InternalContext))
+		}
+		if module.PublicContext != "" {
+			sb.WriteString("## Public Context\n")
+			sb.WriteString(fmt.Sprintf("%s\n\n", module.PublicContext))
+		}
+	}
+
+	return sb.String(), nil
+}
+
+func writeModule(sb *strings.Builder, path string, context *payload.ModuleSelfContainedContext) {
+	if sb == nil {
+		return
+	}
+	if path == "" && (context == nil || (context.ExternalContext == "" && context.InternalContext == "" && context.PublicContext == "")) {
+		return
+	}
+	sb.WriteString(fmt.Sprintf("# Module: `%s`\n", path))
+	if context != nil {
+		if context.ExternalContext != "" {
+			sb.WriteString("## External Context\n")
+			sb.WriteString(fmt.Sprintf("%s\n", context.ExternalContext))
+		}
+		if context.InternalContext != "" {
+			sb.WriteString("## Internal Context\n")
+			sb.WriteString(fmt.Sprintf("%s\n", context.InternalContext))
+		}
+		if context.PublicContext != "" {
+			sb.WriteString("## Public Context\n")
+			sb.WriteString(fmt.Sprintf("%s\n", context.PublicContext))
+		}
+	}
+}
+
+func writeFile(sb *strings.Builder, filepath, content string) {
+	if sb == nil {
+		return
+	}
+	lang := getLanguageFromFilename(filepath)
+	sb.WriteString(fmt.Sprintf("### %s\n", filepath))
+	sb.WriteString(fmt.Sprintf("```%s\n", lang))
+	sb.WriteString(content)
+	// Ensure a trailing newline before closing the code block.
+	if !strings.HasSuffix(content, "\n") {
+		sb.WriteString("\n")
+	}
+	sb.WriteString("```\n\n")
+}
+
+// getLanguageFromFilename returns a language identifier based on file extension.
+func getLanguageFromFilename(filename string) string {
+	if strings.HasSuffix(filename, ".go") {
+		return "go"
+	} else if strings.HasSuffix(filename, ".md") {
+		return "markdown"
+	} else if strings.HasSuffix(filename, ".json") {
+		return "json"
+	} else if strings.HasSuffix(filename, ".txt") {
+		return "text"
+	}
+	// Default: no language specified.
+	return ""
 }
